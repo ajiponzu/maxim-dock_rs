@@ -1,0 +1,4 @@
+interface:
+  display_name: "MaXImDock Development"
+  short_description: "MaXImDock の非表示復帰・Windows 境界・フェーズ検証を維持"
+  default_prompt: "Use $maximdock-development to implement or review the next MaXImDock phase."
