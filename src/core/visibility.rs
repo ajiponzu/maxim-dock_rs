@@ -99,6 +99,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn monitor_is_pinned_until_hidden_then_can_change() {
+        let now = Instant::now();
+        let timing = Timing::default();
+        let showing = DockVisibility::Hidden.advance(now, Some(17), true, false, timing);
+        let visible = showing.advance(now + timing.reveal_hold, Some(29), true, false, timing);
+        assert_eq!(visible, DockVisibility::Visible { monitor_id: 17 });
+        let pending = visible.advance(now + timing.reveal_hold, Some(29), false, false, timing);
+        assert!(matches!(
+            pending,
+            DockVisibility::HidePending { monitor_id: 17, .. }
+        ));
+        let hidden = pending.advance(
+            now + timing.reveal_hold + timing.hide_delay,
+            Some(29),
+            false,
+            false,
+            timing,
+        );
+        assert!(hidden.is_hidden());
+        assert!(matches!(
+            hidden.advance(now + Duration::from_secs(1), Some(29), true, false, timing),
+            DockVisibility::Revealing { monitor_id: 29, .. }
+        ));
+    }
+
+    #[test]
     fn complete_cycle_hold_delay_return_and_escape() {
         let t = Timing::default();
         let now = Instant::now();

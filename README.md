@@ -2,7 +2,7 @@
 
 Windows 向けの軽量な常駐 Dock ランチャー。Rust / egui / eframe と Windows Shell を使用する。
 
-Phase 1 と Phase 2 の実装済み。新規設定の表示位置は **Top**。設定がある場合は保存した辺・タイミング・表示設定・順序付き項目を復元する。自動検証と手動未検証の区別は [acceptance](docs/acceptance.md)、設計判断と依存理由は [notes](docs/notes.md) を参照。
+Phase 1〜3 の機能を実装済み（混在 DPI・実操作の手動受け入れは未完了）。新規設定の表示位置は **Top**。設定がある場合は保存した辺・タイミング・表示設定・順序付き項目を復元する。自動検証と手動未検証の区別は [acceptance](docs/acceptance.md)、設計判断と依存理由は [notes](docs/notes.md) を参照。
 
 前提: Windows 10 以降、x86_64、Rust stable MSVC、Visual Studio Build Tools の C++ ツールチェーンと Windows SDK。検証時 Rust 1.95.0。Cargo.lock で依存解決を固定する。
 
@@ -33,7 +33,13 @@ Dock の `...`、または右クリック → Settings で別ウィンドウの�
 
 Windows Shell 経由で `.exe`、`.lnk`、フォルダ、関連付け済みファイル、http/https を開く。欠損パスは起動時にエラーを表示する。保存済みの欠損パスは取り外したドライブ等を考慮して保持する。URL は http/https と有効なホストのみ、認証情報付き URL は拒否する。
 
-全項目にコード描画の安定した fallback アイコンを表示する。Windows のローカル日本語フォントを利用し、フォントがない場合は同梱フォントで継続する。日本語フォントをリポジトリに配布しない。
+アイコンを取得できない項目には、コード描画の安定した fallback を表示する。Windows のローカル日本語フォントを利用し、フォントがない場合は同梱フォントで継続する。日本語フォントをリポジトリに配布しない。
+
+通知領域のメニューから Show Dock / Settings / Quit を操作できる。非表示時はカーソルがあるモニターの選択辺で復帰し、表示中はそのモニターに固定する。対象モニターへ移動後に DPI を取得して配置する。
+
+表示中の Dock に複数ファイル／フォルダをドロップすると、重複を除いて登録・保存する。未適用の設定編集がある場合は保護のため拒否するので、Apply または Discard edits を選ぶ。保存が失敗した場合は Dock 項目を変更しない。
+
+Windows Shell アイコンを background worker で抽出しキャッシュする。設定の Icon image に PNG/ICO/JPEG のパスを指定でき、失敗時は Shell / fallback に戻る。Reload icons で画像変更を再読込する。URL は globe、欠損パス等は安定した fallback を使う。
 
 ```powershell
 cargo fmt --check
@@ -47,4 +53,4 @@ cargo run --locked -- --smoke-test
 
 smoke は一時設定だけを使う。Top で起動し、四辺への Apply/save/reload、可視 Dock の即再配置、実 HWND の30回 hide/show、hidden の GetCursorPos、描画再開、hidden root と設定 child の共存、設定閉鎖後の継続を検査する。ホットゾーン進入と UI コマンドは疑似入力。クリック操作・ネイティブダイアログ・実カーソルの端進入・150% DPI の手動受け入れは未検証。
 
-Phase 3 の未実装: トレイ、マルチモニター/mixed DPI、外部 DnD、Shell アイコン抽出/キャッシュ、カスタム画像アイコン、ログイン起動の設計調査。主モニターのみで動作する。スリープ/ロック/フルスクリーンとの相互作用は未検証。高度な hover 拡大は Phase 4。
+Phase 3 の未検証: 実トレイクリック、Explorer DnD、混在 DPI の複数モニター、負座標モニター、スリープ/ロック/フルスクリーンとの相互作用。smoke は実 tray 作成と疑似メニュー／ドロップ command も検査するが実操作の代用ではない。未実装: Dock 内 DnD 並び替え、モニター切断への完全自動追従、高解像度/モノクロ/MAX_PATH超の Shell icon（fallback使用）。ログイン起動は設計調査のみで OS 登録は変更しない。高度な hover 拡大・スタートアップ登録は Phase 4。

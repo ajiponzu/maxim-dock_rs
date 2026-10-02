@@ -53,6 +53,9 @@ impl Editor {
                 {
                     commands.push(Command::Apply(self.draft.clone()));
                 }
+                if ui.button("Discard edits").clicked() {
+                    commands.push(Command::DiscardSettings);
+                }
                 if ui.button("Show Dock").clicked() {
                     commands.push(Command::Show);
                 }
@@ -64,6 +67,9 @@ impl Editor {
                 }
             });
             ui.label(config_path.display().to_string());
+            if ui.button("Reload icons").clicked() {
+                commands.push(Command::ReloadIcons);
+            }
             ui.separator();
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.heading("Dock");
@@ -140,6 +146,30 @@ impl Editor {
                             }
                         });
                         ui.label(&item.target);
+                        ui.horizontal(|ui| {
+                            ui.label("Icon image (optional)");
+                            let mut path = match &item.icon {
+                                IconSource::File { path } => path.to_string_lossy().into_owned(),
+                                _ => String::new(),
+                            };
+                            if ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut path)
+                                        .desired_width(260.0)
+                                        .hint_text("PNG / ICO / JPEG path"),
+                                )
+                                .changed()
+                            {
+                                item.icon = if path.is_empty() {
+                                    IconSource::Auto
+                                } else {
+                                    IconSource::File { path: path.into() }
+                                };
+                            }
+                            if ui.button("Auto").clicked() {
+                                item.icon = IconSource::Auto;
+                            }
+                        });
                     });
                 }
                 if let Some(index) = remove {

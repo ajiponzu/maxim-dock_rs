@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => return Err(format!("unknown argument: {arg}").into()),
         }
     }
-    tracing::info!(?edge, "starting MaXImDock Phase 2 (default: Top)");
+    tracing::info!(?edge, "starting MaXImDock Phase 3 (default: Top)");
     let size = if edge.unwrap_or_default().is_horizontal() {
         [310.0, 100.0]
     } else {
@@ -40,6 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_always_on_top()
             .with_taskbar(false)
             .with_resizable(false)
+            .with_drag_and_drop(true)
             .with_active(false),
         renderer: eframe::Renderer::Glow,
         ..Default::default()

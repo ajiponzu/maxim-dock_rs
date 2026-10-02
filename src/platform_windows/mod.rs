@@ -4,10 +4,19 @@ use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
 mod config_store;
 pub use config_store::*;
+mod tray;
+pub use tray::*;
+mod icon;
+pub use icon::*;
+mod file_dialog;
+pub use file_dialog::{FilePicker, FileSelection, PickKind};
 use windows::{
     Win32::{
         Foundation::{HWND, POINT, RECT},
-        Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MonitorFromPoint},
+        Graphics::Gdi::{
+            GetMonitorInfoW, HMONITOR, MONITOR_DEFAULTTONULL, MONITOR_DEFAULTTOPRIMARY,
+            MONITORINFO, MonitorFromPoint, MonitorFromWindow,
+        },
         UI::{
             HiDpi::GetDpiForWindow,
             Shell::{CSIDL_APPDATA, CSIDL_PROFILE, SHGetFolderPathW, ShellExecuteW},
@@ -50,10 +59,37 @@ impl CursorProvider for WindowsCursor {
     }
 }
 
-pub fn primary_monitor() -> Result<MonitorRect, PlatformError> {
+#[derive(Debug, Clone, Copy)]
+pub struct Monitor {
+    pub id: usize,
+    pub rect: MonitorRect,
+}
+
+pub fn primary_monitor() -> Result<Monitor, PlatformError> {
+    // SAFETY: value arguments only; returned monitor handle is borrowed.
+    monitor_info(unsafe { MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY) })
+}
+
+pub fn cursor_monitor(point: ScreenPoint) -> Result<Option<Monitor>, PlatformError> {
+    // SAFETY: physical screen point, no pointers retained. Desktop gaps return null.
+    let handle = unsafe {
+        MonitorFromPoint(
+            POINT {
+                x: point.x,
+                y: point.y,
+            },
+            MONITOR_DEFAULTTONULL,
+        )
+    };
+    if handle.0.is_null() {
+        return Ok(None);
+    }
+    monitor_info(handle).map(Some)
+}
+
+fn monitor_info(monitor: HMONITOR) -> Result<Monitor, PlatformError> {
     // SAFETY: value arguments and correctly sized writable MONITORINFO.
     unsafe {
-        let monitor = MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY);
         let mut info = MONITORINFO {
             cbSize: std::mem::size_of::<MONITORINFO>() as u32,
             ..Default::default()
@@ -62,11 +98,14 @@ pub fn primary_monitor() -> Result<MonitorRect, PlatformError> {
             .ok()
             .map_err(|e| error("GetMonitorInfoW", e))?;
         let r = info.rcMonitor;
-        Ok(MonitorRect {
-            left: r.left,
-            top: r.top,
-            width: r.right - r.left,
-            height: r.bottom - r.top,
+        Ok(Monitor {
+            id: monitor.0 as usize,
+            rect: MonitorRect {
+                left: r.left,
+                top: r.top,
+                width: r.right - r.left,
+                height: r.bottom - r.top,
+            },
         })
     }
 }
@@ -154,10 +193,29 @@ impl DockWindow {
     pub fn position(
         &self,
         edge: DockEdge,
-        monitor: MonitorRect,
+        target: Monitor,
         points: (f32, f32),
         always_on_top: bool,
     ) -> Result<(), PlatformError> {
+        // Refresh the pinned handle to detect disconnected/reconfigured displays.
+        let monitor = monitor_info(HMONITOR(target.id as *mut c_void))?.rect;
+        // SAFETY: live HWND, borrowed HMONITOR. Move while hidden before querying
+        // the window DPI; querying the old monitor's DPI would size incorrectly.
+        let current = unsafe { MonitorFromWindow(self.hwnd, MONITOR_DEFAULTTONULL) };
+        if current.0 as usize != target.id {
+            unsafe {
+                SetWindowPos(
+                    self.hwnd,
+                    None,
+                    monitor.left,
+                    monitor.top,
+                    1,
+                    1,
+                    SWP_NOACTIVATE | SWP_NOZORDER,
+                )
+            }
+            .map_err(|e| error("SetWindowPos(target monitor)", e))?;
+        }
         // SAFETY: live eframe HWND. DPI conversion is centralized here.
         let dpi = unsafe { GetDpiForWindow(self.hwnd) };
         if dpi == 0 {
@@ -165,11 +223,7 @@ impl DockWindow {
                 "GetDpiForWindow returned zero for the Dock HWND",
             ));
         }
-        let scale = dpi as f32 / 96.0;
-        let size = (
-            ((points.0 * scale).round() as i32).min(monitor.width),
-            ((points.1 * scale).round() as i32).min(monitor.height),
-        );
+        let size = physical_size(points, dpi, monitor);
         let anchor = dock_anchor_position(edge, monitor, size);
         // SAFETY: live HWND and physical dimensions. SWP_NOACTIVATE preserves focus.
         unsafe {
@@ -190,6 +244,10 @@ impl DockWindow {
         .map_err(|e| error("SetWindowPos", e))?;
         tracing::debug!(?monitor, ?anchor, ?size, dpi, "Dock layout");
         Ok(())
+    }
+    pub fn dpi(&self) -> u32 {
+        // SAFETY: live eframe HWND, no pointers.
+        unsafe { GetDpiForWindow(self.hwnd) }
     }
     pub fn show_without_activation(&self) {
         // SAFETY: live HWND. Return value is previous visibility, not an error code.
@@ -217,5 +275,38 @@ impl DockWindow {
             width: r.right - r.left,
             height: r.bottom - r.top,
         })
+    }
+}
+
+fn physical_size(points: (f32, f32), dpi: u32, monitor: MonitorRect) -> (i32, i32) {
+    let scale = dpi as f32 / 96.0;
+    (
+        ((points.0 * scale).round() as i32).clamp(1, monitor.width),
+        ((points.1 * scale).round() as i32).clamp(1, monitor.height),
+    )
+}
+
+#[cfg(test)]
+mod monitor_tests {
+    use super::*;
+    #[test]
+    fn dpi_sizes_and_negative_monitor_anchors_use_physical_pixels() {
+        let monitor = MonitorRect {
+            left: -1920,
+            top: -1080,
+            width: 1920,
+            height: 1080,
+        };
+        assert_eq!(physical_size((300.0, 100.0), 96, monitor), (300, 100));
+        let size = physical_size((300.0, 100.0), 144, monitor);
+        assert_eq!(size, (450, 150));
+        assert_eq!(
+            dock_anchor_position(DockEdge::Top, monitor, size),
+            ScreenPoint { x: -1185, y: -1080 }
+        );
+        assert_eq!(
+            physical_size((10000.0, 10000.0), 144, monitor),
+            (1920, 1080)
+        );
     }
 }

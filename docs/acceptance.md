@@ -1,6 +1,17 @@
 # 受け入れ状況
 
-記録日: 2026-10-02。チェックは実際に確認した条件のみ。未チェックの条件には、実装済みだが手動未検証のものも含む。
+記録日: 2026-10-03。チェックは実際に確認した条件のみ。未チェックの条件には、実装済みだが手動未検証のものも含む。
+
+## UI 責務分離 — 回帰検証
+
+- [x] ui/mod.rs はモジュール宣言と公開入口だけ。ui::DockApp を維持
+- [x] App 接続、command 実行、native smoke、PollWake、項目取り込みを分離
+- [x] rfd worker と受信状態を Windows FilePicker に移動。App field/atomic の公開範囲を広げない
+- [x] fmt / clippy -D warnings / cargo test（23 tests）
+- [x] picker の pending・多重起動拒否・パス順序・取消・切断を追加テスト
+- [x] 分離後の native smoke（既存 Dock を維持し別 target-dir で実行）。実 hide/show30回、poll92回、641 frames、3種の PASS と正常終了
+
+既存の手動未検証項目は本リファクタリングで合格へ変更しない。
 
 ## Phase 1 — 実装済み・手動受け入れ一部未完了
 
@@ -45,19 +56,29 @@
 - [ ] 四辺・ホットゾーン・Esc を実マウスとキーで確認
 - [ ] 日本語表示/入力、100%/150% DPI、設定ウィンドウの操作性を手動確認
 
-範囲内の機能実装は完了。チェック済みは記載の自動テストや native command smoke の証拠に基づく。smoke は UI コマンド経路を実行するが人間のクリックやダイアログ操作の代用ではない。Shell アイコン抽出/外部 DnD/トレイ/マルチモニターは Phase 3 に残す。
+範囲内の機能実装は完了。チェック済みは記載の自動テストや native command smoke の証拠に基づく。smoke は UI コマンド経路を実行するが人間のクリックやダイアログ操作の代用ではない。以下の Phase 3 で統合機能を追加した。
 
-## Phase 3 — 未実装（一部基盤のみ）
+## Phase 3 — 統合実装済み・実操作／混在 DPI の受け入れ未完了
 
-- [ ] トレイから Dock 表示・設定・正常終了（現在は Dock 右クリック Quit と smoke 自動終了）
-- [ ] カーソルのあるモニターの選択 edge から復帰（主モニターのみ）
-- [x] 表示中に別モニターへ追従するコードはなく、配置は起動・復帰時に固定
+- [x] 実 Windows トレイ作成、メニュー callback → weak relay/channel/repaint → UI command の接続
+- [x] 疑似 MenuEvent による hidden root で Settings → Show → Quit・正常終了（native smoke）
+- [ ] 実際のトレイメニュー操作から Dock 表示・設定・正常終了を手動確認
+- [x] MonitorFromPoint でカーソルモニターを選択し、その矩形の設定 edge へ配置するコードを接続
+- [x] 表示中は選択モニターを固定。別 ID の入力は状態機械の固定 ID を変更しない（テスト）
+- [ ] 実際の別モニターの画面端から復帰し、表示中に移動しないことを手動確認
 - [x] 負の仮想座標の core 計算でクラッシュしない（ユニットテスト）
+- [x] 対象モニターへ hidden HWND を移してから window DPI を取得する補正。96/144 DPI のサイズ・負座標 anchor テスト
 - [ ] 負座標・混在 DPI のマルチモニター実機検証
-- [ ] 外部ファイル／フォルダ DnD と永続的な項目追加
-- [x] 全項目に安定したコード描画 fallback、URL は globe（Shell 抽出/カスタム画像は未実装）
-- [ ] Shell アイコン読込で icon/GDI リソースリークがないことを確認（抽出は未実装）
-- [x] 起動失敗は操作可能な設定 viewport と詳細ログへ表示（高度な修復は未実装）
-- [ ] ログイン時起動の設計調査（実装は必須でない）
+- [x] egui 0.36 DroppedFile::path を command 化し、複数ファイル／フォルダ・Unicode・重複拒否・順序・保存を接続
+- [x] ドロップ command から Apply/save/reload、重複拒否を native smoke で検証（OS の実ドロップではない）
+- [x] 未保存 draft はドロップで上書きせず拒否。Discard edits を追加。保存失敗は live config を変更しない
+- [ ] Explorer から実際に複数ファイル／フォルダをドロップし、再起動後の復元を確認
+- [x] Shell icon worker・キャッシュ・削除時の texture 回収。名前/順序/サイズ変更だけでは再抽出しない（テスト）
+- [x] カスタム PNG/ICO/JPEG → Shell → URL globe/fallback。指定画像の優先と欠損 URL 画像 fallback をテスト
+- [x] Shell icon 100 回抽出で GDI/USER ハンドル増加が各 +2 以下（warm-up 後、実 Win32 テスト）
+- [ ] 多様な exe/lnk/関連付けファイル・モノクロ icon・カスタム画像を反復編集して見た目と長時間 resource 使用を手動確認
+- [x] 起動失敗を項目名付きの操作可能な設定 viewport と詳細ログへ表示（高度な修復は未実装）
+- [x] ログイン時起動の設計調査を notes に記録。OS へのスタートアップ登録は変更しない
+- [x] fmt / clippy -D warnings / test（21 tests）、native smoke の NATIVE / PHASE2 / PHASE3_SMOKE_PASS
 
-理由: Phase 2 の設定保存と操作を先に安定させる範囲に従った。通知領域はイベントループ統合、複数モニターはモニター固定と DPI 移行、DnD は今回の保存経路への接続、Shell アイコンは所有権・キャッシュ・リソース解放の検証が必要。アイコン抽出を行っていないため、GDI leak の合格を推測で付けない。
+未実装: Dock 内 DnD 並び替え、モノクロ Shell icon の特殊変換、MAX_PATH 超の Shell icon 抽出、高解像度 Shell image list、スタートアップ登録、Phase 4 の拡大等。安定した Up/Down と fallback を残し、複雑な Shell/画像経路と OS 自動起動の変更は後回し。混在 DPI／OS 実入力は自動テストで代替できないため未合格。詳細と検証手順は notes を参照。

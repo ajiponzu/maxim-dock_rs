@@ -3,7 +3,12 @@ use crate::core::*;
 use eframe::egui;
 
 /// Code-drawn fallback icons require no Shell/GDI resource ownership.
-pub(super) fn render(ui: &mut egui::Ui, config: &Config, commands: &mut Vec<Command>) {
+pub(super) fn render(
+    ui: &mut egui::Ui,
+    config: &Config,
+    icons: &super::icons::Icons,
+    commands: &mut Vec<Command>,
+) {
     let alpha = (config.appearance.background_opacity * 255.0).round() as u8;
     let response = egui::Frame::new()
         .fill(egui::Color32::from_rgba_unmultiplied(25, 30, 40, alpha))
@@ -41,7 +46,17 @@ pub(super) fn render(ui: &mut egui::Ui, config: &Config, commands: &mut Vec<Comm
                                 egui::vec2(size * 0.65, size * 0.65),
                             );
                             let color = egui::Color32::from_rgb(175, 205, 245);
-                            if item.kind == TargetKind::Url {
+                            if let Some(texture) = icons.texture(item.id) {
+                                ui.painter().image(
+                                    texture,
+                                    icon,
+                                    egui::Rect::from_min_max(
+                                        egui::pos2(0.0, 0.0),
+                                        egui::pos2(1.0, 1.0),
+                                    ),
+                                    egui::Color32::WHITE,
+                                );
+                            } else if item.kind == TargetKind::Url {
                                 ui.painter().circle_stroke(
                                     icon.center(),
                                     icon.width() / 2.0,
