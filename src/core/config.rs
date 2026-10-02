@@ -228,6 +228,29 @@ impl Config {
         self.items.insert(to, item);
         true
     }
+
+    /// Stable-ID insertion avoids using an index captured before another edit.
+    pub fn reorder_before(
+        &mut self,
+        id: uuid::Uuid,
+        before: Option<uuid::Uuid>,
+    ) -> Result<bool, ValidationError> {
+        let from = self
+            .items
+            .iter()
+            .position(|item| item.id == id)
+            .ok_or(ValidationError("Dragged item no longer exists."))?;
+        let slot = match before {
+            Some(before) => self
+                .items
+                .iter()
+                .position(|item| item.id == before)
+                .ok_or(ValidationError("Drop destination no longer exists."))?,
+            None => self.items.len(),
+        };
+        let to = if slot > from { slot - 1 } else { slot };
+        Ok(self.move_item(from, to))
+    }
 }
 
 pub fn target_key(target: &str, kind: TargetKind) -> String {
@@ -251,6 +274,35 @@ pub fn target_key(target: &str, kind: TargetKind) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stable_id_drag_insertion_preserves_items_and_rejects_stale_ids() {
+        let mut config = Config::defaults("home".into());
+        let original = config.items.clone();
+        let [a, b, c] = [original[0].id, original[1].id, original[2].id];
+        assert!(config.reorder_before(a, None).unwrap());
+        assert_eq!(
+            config.items,
+            vec![
+                original[1].clone(),
+                original[2].clone(),
+                original[0].clone()
+            ]
+        );
+        assert!(config.reorder_before(c, Some(b)).unwrap());
+        let snapshot = config.clone();
+        assert!(!config.reorder_before(c, Some(c)).unwrap());
+        assert!(!config.reorder_before(c, Some(b)).unwrap());
+        assert!(config.reorder_before(uuid::Uuid::new_v4(), None).is_err());
+        assert!(
+            config
+                .reorder_before(a, Some(uuid::Uuid::new_v4()))
+                .is_err()
+        );
+        assert_eq!(config, snapshot);
+        let restored: Config = toml::from_str(&toml::to_string(&config).unwrap()).unwrap();
+        assert_eq!(restored, config);
+    }
 
     #[test]
     fn palettes_round_trip_and_legacy_configs_default_without_losing_items() {

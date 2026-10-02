@@ -117,18 +117,46 @@ impl DockApp {
                         let directory = self._smoke_directory.as_ref().unwrap().path().to_owned();
                         let file = directory.join("dropped 日本語.txt");
                         std::fs::write(&file, b"smoke").unwrap();
-                        let original = self.config.items.len();
-                        self.pending
-                            .push(Command::DropPaths(vec![file.clone(), directory]));
-                        self.process_commands(ctx);
-                        assert_eq!(self.config.items.len(), original + 2);
-                        self.pending.push(Command::DropPaths(vec![file]));
+                        let original = self.config.clone();
+                        self.pending.push(Command::RejectDrop);
                         self.process_commands(ctx);
                         assert_eq!(
-                            self.config.items.len(),
-                            original + 2,
-                            "duplicate must not add"
+                            self.config, original,
+                            "external drop must not register items"
                         );
+                        self.editor.message = None;
+                        let dragged = self.config.items.last().unwrap().id;
+                        let before = self.config.items[0].id;
+                        self.pending.push(Command::Reorder {
+                            id: dragged,
+                            before: Some(before),
+                        });
+                        self.process_commands(ctx);
+                        assert_eq!(
+                            self.config.items[0].id, dragged,
+                            "Dock drop reorder must save and apply"
+                        );
+                        let snapshot = self.config.clone();
+                        self.editor.draft.items[0].label = "unsaved draft".into();
+                        self.pending.push(Command::Reorder {
+                            id: dragged,
+                            before: None,
+                        });
+                        self.process_commands(ctx);
+                        assert_eq!(self.config, snapshot, "DnD must preserve unsaved settings");
+                        self.editor.draft = snapshot.clone();
+                        let saved_bytes = std::fs::read(&self.config_path).unwrap();
+                        std::fs::write(&self.config_path, b"external edit").unwrap();
+                        self.pending.push(Command::Reorder {
+                            id: dragged,
+                            before: None,
+                        });
+                        self.process_commands(ctx);
+                        assert_eq!(
+                            self.config, snapshot,
+                            "Failed save must preserve Dock order"
+                        );
+                        std::fs::write(&self.config_path, saved_bytes).unwrap();
                         self.editor.message = None;
                         let (_, restored, error) = ConfigStore::load(
                             self.config_path.clone(),
@@ -189,7 +217,7 @@ impl DockApp {
                             "PHASE2_SMOKE_PASS: four-edge Apply/save/reload and settings open/close with hidden root"
                         );
                         tracing::info!(
-                            "PHASE3_SMOKE_PASS: native tray created; synthetic menu Settings/Show/Quit; dropped-path command save/reload and duplicate rejection"
+                            "PHASE3_SMOKE_PASS: native tray created; synthetic menu Settings/Show/Quit; Dock reorder save/reload, draft/conflict protection; external drop does not register"
                         );
                         self.tray
                             .as_ref()

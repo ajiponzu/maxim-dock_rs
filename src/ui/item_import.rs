@@ -1,4 +1,4 @@
-//! Build a validated, ordered import draft without mutating live settings.
+//! Settings file-picker import: validated, ordered draft without live mutation.
 use super::settings;
 use crate::core::*;
 use std::path::PathBuf;
@@ -32,7 +32,7 @@ mod tests {
     use super::*;
     use crate::platform_windows::ConfigStore;
     #[test]
-    fn dropped_batch_keeps_order_rejects_duplicates_and_missing_paths() {
+    fn selected_batch_keeps_order_rejects_duplicates_and_missing_paths() {
         let directory = tempfile::tempdir().unwrap();
         let file = directory.path().join("日本語.txt");
         std::fs::write(&file, b"test").unwrap();

@@ -1,7 +1,5 @@
-use super::{
-    commands::Command,
-    theme::{DOCK_LABEL_SIZE, Palette},
-};
+mod card;
+use super::{commands::Command, theme::Palette};
 use crate::core::*;
 use eframe::egui;
 
@@ -10,9 +8,11 @@ pub(super) fn render(
     ui: &mut egui::Ui,
     config: &Config,
     icons: &super::icons::Icons,
+    external_point: Option<egui::Pos2>,
     commands: &mut Vec<Command>,
 ) {
     let p = Palette::of(ui);
+    let external_drop = ui.input(|i| !i.raw.hovered_files.is_empty());
     let alpha = (config.appearance.background_opacity * 255.0).round() as u8;
     let response = egui::Frame::new()
         .fill(egui::Color32::from_rgba_unmultiplied(
@@ -21,7 +21,10 @@ pub(super) fn render(
             p.panel.b(),
             alpha,
         ))
-        .stroke(egui::Stroke::new(1.0, p.border))
+        .stroke(egui::Stroke::new(
+            if external_drop { 3.0 } else { 1.0 },
+            if external_drop { p.accent } else { p.border },
+        ))
         .corner_radius(20)
         .outer_margin(5)
         .inner_margin(12)
@@ -40,86 +43,25 @@ pub(super) fn render(
                         if config.items.is_empty() {
                             ui.label("空の Dock");
                         }
+                        let mut cards = Vec::new();
                         for item in &config.items {
-                            let size = config.dock.icon_size;
-                            let (rect, response) =
-                                ui.allocate_exact_size(item_size(size), egui::Sense::click());
-                            let fill = if response.hovered() {
-                                p.hover
-                            } else {
-                                egui::Color32::TRANSPARENT
-                            };
-                            ui.painter().rect_filled(rect, 12, fill);
-                            if response.hovered() || response.has_focus() {
-                                ui.painter().rect_stroke(
-                                    rect,
-                                    12,
-                                    egui::Stroke::new(1.0, p.accent),
-                                    egui::StrokeKind::Inside,
-                                );
-                            }
-                            let icon = egui::Rect::from_center_size(
-                                egui::pos2(rect.center().x, rect.top() + size / 2.0 + 6.0),
-                                egui::vec2(size * 0.82, size * 0.82),
-                            );
-                            let color = p.accent;
-                            if let Some(texture) = icons.texture(item.id) {
-                                ui.painter().image(
-                                    texture,
-                                    icon,
-                                    egui::Rect::from_min_max(
-                                        egui::pos2(0.0, 0.0),
-                                        egui::pos2(1.0, 1.0),
-                                    ),
-                                    egui::Color32::WHITE,
-                                );
-                            } else if item.kind == TargetKind::Url {
-                                ui.painter().circle_stroke(
-                                    icon.center(),
-                                    icon.width() / 2.0,
-                                    egui::Stroke::new(2.0, color),
-                                );
-                                ui.painter().line_segment(
-                                    [
-                                        egui::pos2(icon.left(), icon.center().y),
-                                        egui::pos2(icon.right(), icon.center().y),
-                                    ],
-                                    egui::Stroke::new(2.0, color),
-                                );
-                                ui.painter().line_segment(
-                                    [
-                                        egui::pos2(icon.center().x, icon.top()),
-                                        egui::pos2(icon.center().x, icon.bottom()),
-                                    ],
-                                    egui::Stroke::new(2.0, color),
-                                );
-                            } else {
-                                ui.painter().rect_stroke(
-                                    icon,
-                                    4,
-                                    egui::Stroke::new(2.0, color),
-                                    egui::StrokeKind::Inside,
-                                );
-                                ui.painter().line_segment(
-                                    [
-                                        egui::pos2(icon.left() + 4.0, icon.top() + 8.0),
-                                        egui::pos2(icon.right() - 4.0, icon.top() + 8.0),
-                                    ],
-                                    egui::Stroke::new(2.0, color),
-                                );
-                            }
-                            paint_label(ui, rect, &item.label, p.text);
-                            if response
-                                .on_hover_text(format!("{}\n{}", item.label, item.target))
-                                .clicked()
-                            {
-                                commands.push(Command::Launch(item.id));
-                            }
+                            cards.push((
+                                item.id,
+                                card::render(
+                                    ui,
+                                    config.dock.icon_size,
+                                    icons.texture(item.id),
+                                    item,
+                                    commands,
+                                ),
+                            ));
                         }
                         ui.separator();
                         if settings_button(ui, p).on_hover_text("設定を開く").clicked() {
                             commands.push(Command::OpenSettings);
                         }
+                        super::dock_drag::finish(ui, config.dock.edge, &cards, commands);
+                        super::dock_drop::finish(ui, config, &cards, external_point, commands);
                     });
                 });
         })
@@ -164,24 +106,6 @@ pub(super) fn dock_size(config: &Config) -> (f32, f32) {
 fn item_size(icon_size: f32) -> egui::Vec2 {
     egui::vec2((icon_size + 24.0).max(88.0), icon_size + 38.0)
 }
-fn paint_label(ui: &egui::Ui, rect: egui::Rect, label: &str, color: egui::Color32) {
-    let mut job = egui::text::LayoutJob::simple_singleline(
-        label.to_owned(),
-        egui::FontId::proportional(DOCK_LABEL_SIZE),
-        color,
-    );
-    job.wrap.max_width = rect.width() - 12.0;
-    job.wrap.max_rows = 1;
-    job.wrap.break_anywhere = true;
-    let galley = ui.painter().layout_job(job);
-    let position = egui::pos2(
-        rect.center().x - galley.size().x / 2.0,
-        rect.bottom() - 8.0 - galley.size().y,
-    );
-    ui.painter()
-        .with_clip_rect(rect)
-        .galley(position, galley, color);
-}
 fn settings_button(ui: &mut egui::Ui, p: Palette) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(egui::vec2(52.0, 52.0), egui::Sense::click());
     if response.hovered() || response.has_focus() {
@@ -224,7 +148,7 @@ mod tests {
         for size in [24.0, 56.0, 128.0] {
             config.dock.icon_size = size;
             let tile = item_size(size);
-            assert!(tile.x >= 88.0 && tile.y >= size + DOCK_LABEL_SIZE + 16.0);
+            assert!(tile.x >= 88.0 && tile.y >= size + crate::ui::theme::DOCK_LABEL_SIZE + 16.0);
             for edge in [
                 DockEdge::Top,
                 DockEdge::Bottom,

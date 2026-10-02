@@ -5,7 +5,15 @@ pub(super) enum Command {
     PickFiles,
     PickFolder,
     Apply(Config),
-    DropPaths(Vec<std::path::PathBuf>),
+    OpenDropped {
+        id: uuid::Uuid,
+        paths: Vec<std::path::PathBuf>,
+    },
+    RejectDrop,
+    Reorder {
+        id: uuid::Uuid,
+        before: Option<uuid::Uuid>,
+    },
     DiscardSettings,
     ReloadIcons,
     BackUpInvalid,

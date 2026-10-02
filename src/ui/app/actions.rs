@@ -3,10 +3,10 @@ use super::{DockApp, apply_theme};
 use crate::{
     core::*,
     platform_windows::*,
-    ui::{commands::Command, item_import::stage_paths, poll_wake::PollWake, settings},
+    ui::{commands::Command, poll_wake::PollWake},
 };
 use eframe::egui;
-use std::{path::PathBuf, time::Instant};
+use std::time::Instant;
 
 impl DockApp {
     pub(super) fn process_commands(&mut self, ctx: &egui::Context) {
@@ -29,7 +29,9 @@ impl DockApp {
                         }
                     }
                 }
-                Command::DropPaths(paths) => self.drop_paths(ctx, paths),
+                Command::OpenDropped { id, paths } => self.open_dropped(id, paths),
+                Command::RejectDrop => self.report("ファイルはアプリ（.exe／.lnk）のカードにドロップしてください。登録は設定から行えます。".into()),
+                Command::Reorder { id, before } => self.reorder_dock(ctx, id, before),
                 Command::DiscardSettings => {
                     self.editor.draft = self.config.clone();
                     self.editor.message = Some("Unsaved edits discarded.".into());
@@ -144,30 +146,6 @@ impl DockApp {
 }
 
 impl DockApp {
-    fn drop_paths(&mut self, ctx: &egui::Context, paths: Vec<PathBuf>) {
-        if self.editor.draft != self.config {
-            self.report(
-                "Apply or discard your settings edits before dropping files. No files were added."
-                    .into(),
-            );
-            return;
-        }
-        let (config, failures) = stage_paths(&self.config, paths);
-        let added = config.items.len() - self.config.items.len();
-        if added > 0 {
-            self.pending.push(Command::Apply(config.clone()));
-            self.process_commands(ctx);
-            if self.config != config {
-                return;
-            } // save failed: report preserved by Apply
-        }
-        if !failures.is_empty() {
-            self.report(format!("Added {added} items. {}", failures.join("\n")));
-        } else {
-            self.editor.message = Some(format!("Added and saved {added} dropped items."));
-        }
-    }
-
     pub(super) fn receive_tray(&mut self) {
         if let Some(tray) = &self.tray {
             self.pending
@@ -192,25 +170,8 @@ impl DockApp {
                 return;
             }
         };
-        let mut failures = Vec::new();
-        for path in paths {
-            let target = path.to_string_lossy().into_owned();
-            let result = validate_target(&target, TargetKind::Path)
-                .map_err(str::to_owned)
-                .and_then(|()| {
-                    self.editor
-                        .draft
-                        .add_item(DockItem::new(
-                            settings::label_for_path(&path),
-                            target,
-                            TargetKind::Path,
-                        ))
-                        .map_err(|e| e.to_string())
-                });
-            if let Err(e) = result {
-                failures.push(e);
-            }
-        }
+        let (draft, failures) = crate::ui::item_import::stage_paths(&self.editor.draft, paths);
+        self.editor.draft = draft;
         self.editor.message = Some(if failures.is_empty() {
             "Added to draft. Choose Apply and save.".into()
         } else {

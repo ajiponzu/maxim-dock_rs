@@ -2,6 +2,32 @@
 
 記録日: 2026-10-03。チェックは実際に確認した条件のみ。未チェックの条件には、実装済みだが手動未検証のものも含む。
 
+## 外部ファイルをアプリで開く（2026-10-03）
+
+- [x] アプリカードの受け入れ表示とOpenDropped command。登録／保存／コピー／移動しない
+- [x] 四辺headless routingで1回だけ発行、URL／フォルダー／空白／clip外／未知位置は案内、設定不変
+- [x] exeとexeへのlnk、既存引数／作業ディレクトリの取得、複数ファイルの全件検証・引用
+- [x] 実Shell起動で専用テストreceiverへ日本語・空白・&を含む複数パスとlnk引数が正確に届くことを検査。入力内容不変
+- [x] fmt／clippy --all-targets -D warnings／43 tests成功
+- [x] native smoke正常終了: hide/show30回、poll92回、689 frames、3種のPASS。並べ替え保存／draft・競合保護／外部drop登録なし／hidden root設定表示
+- [x] settingsをdeferred viewportへ分離し、初回生成時panicを修正。snapshot／command受信と非表示callback無操作をテスト
+- [ ] Explorerから実際のアプリカードへdropし、目的のアプリでファイルが開くことを確認
+- [ ] OLE hoverの受け入れ表示、複数モニター混在DPIでの実drop位置を確認
+- [ ] 遅延方式の設定画面で長時間編集、Xで閉じてtrayから再開する実操作を確認
+
+登録は設定のファイル選択／手入力を維持。UWP・スクリプト・文書カードは対象外、アプリ側がファイル引数に対応する必要がある。lnk自動修復／起動属性の完全再現は未実装。Phase 2保存安全性とPhase 3トレイ／モニター／アイコンは維持。下記の旧「drop登録」検証は履歴で、現在の仕様ではない。
+
+## Dock カードのドラッグ並べ替え（2026-10-03）
+
+- [x] 内部UUID payload、四辺の主軸挿入線、release時に保存するReorder command
+- [x] 四辺のheadless UI疑似ドラッグで並べ替え1回だけ発行、Launchなし、Esc／外へのdropで取消
+- [x] ID・項目内容維持、同位置no-op、stale ID拒否、TOML往復をテスト
+- [x] native command経路で並べ替え保存／再読込、未保存draft拒否、競合による保存失敗時のlive順序維持を検査
+- [x] fmt／clippy／36 tests、native smoke正常終了（30 hide/show、poll91回、645 frames、3種のPASS）
+- [ ] 実マウスでの長いDock・四辺・混在DPIの並べ替えを手動検証
+
+外部dropは上記のアプリ起動へ変更済み。ドラッグ端の自動スクロール／ghostは未実装、設定のUp/Downを代替に維持。コピー／移動は実行しない。
+
 ## 高解像度 Shell アイコン（2026-10-03）
 
 - [x] Shell Image Factoryで256pxを要求。サムネイルは使わず、失敗時はlegacy Shellアイコンへ戻る
@@ -122,7 +148,7 @@ CSSと外部テーマファイルのインポート、ホットリロード、�
 - [x] egui 0.36 DroppedFile::path を command 化し、複数ファイル／フォルダ・Unicode・重複拒否・順序・保存を接続
 - [x] ドロップ command から Apply/save/reload、重複拒否を native smoke で検証（OS の実ドロップではない）
 - [x] 未保存 draft はドロップで上書きせず拒否。Discard edits を追加。保存失敗は live config を変更しない
-- [ ] Explorer から実際に複数ファイル／フォルダをドロップし、再起動後の復元を確認
+- 旧drop登録の手動検証は現仕様では不要（ユーザー指定により廃止）。現在のアプリdrop受け入れは上記を参照
 - [x] Shell icon worker・キャッシュ・削除時の texture 回収。名前/順序/サイズ変更だけでは再抽出しない（テスト）
 - [x] カスタム PNG/ICO/JPEG → Shell → URL globe/fallback。指定画像の優先と欠損 URL 画像 fallback をテスト
 - [x] Shell icon 100 回抽出で GDI/USER ハンドル増加が各 +2 以下（warm-up 後、実 Win32 テスト）
@@ -131,4 +157,4 @@ CSSと外部テーマファイルのインポート、ホットリロード、�
 - [x] ログイン時起動の設計調査を notes に記録。OS へのスタートアップ登録は変更しない
 - [x] fmt / clippy -D warnings / test（21 tests）、native smoke の NATIVE / PHASE2 / PHASE3_SMOKE_PASS
 
-未実装: Dock 内 DnD 並び替え、モノクロ Shell icon の特殊変換、MAX_PATH 超の Shell icon 抽出、スタートアップ登録、Phase 4 の拡大等。高解像度は上記Factory方式で対応済み。安定した Up/Down と fallback を残し、複雑な Shell/画像経路と OS 自動起動の変更は後回し。混在 DPI／OS 実入力は自動テストで代替できないため未合格。詳細と検証手順は notes を参照。
+未実装: モノクロ Shell icon の特殊変換、MAX_PATH 超の Shell icon 抽出、スタートアップ登録、Phase 4 の拡大等。高解像度は上記Factory方式、Dock内DnD並べ替えは上記UUID方式で対応済み。安定した Up/Down と fallback を残し、複雑な Shell/画像経路と OS 自動起動の変更は後回し。混在 DPI／OS 実入力は自動テストで代替できないため未合格。詳細と検証手順は notes を参照。

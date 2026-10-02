@@ -1,5 +1,6 @@
 //! eframe integration: startup, visibility scheduling, and view composition.
 mod actions;
+mod dock_actions;
 mod smoke;
 mod smoke_capture;
 
@@ -19,6 +20,7 @@ pub struct DockApp {
     config: Config,
     store: Option<ConfigStore>,
     editor: Editor,
+    settings_window: super::settings_window::SettingsWindow,
     config_path: PathBuf,
     state: DockVisibility,
     wake: PollWake,
@@ -126,6 +128,7 @@ impl DockApp {
             config,
             store,
             editor,
+            settings_window: Default::default(),
             config_path: path,
             state: DockVisibility::Revealing {
                 started_at: now,
@@ -184,6 +187,14 @@ impl DockApp {
 
 impl eframe::App for DockApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let settings_frames = self
+            .settings_window
+            .receive(&mut self.editor, &mut self.pending);
+        if let Some(smoke) = &mut self.smoke {
+            for _ in 0..settings_frames {
+                smoke.record_settings_frame();
+            }
+        }
         self.receive_tray();
         self.receive_dialog();
         self.save_smoke_captures(ctx);
@@ -244,6 +255,13 @@ impl eframe::App for DockApp {
         let next = self.state.advance(now, hot_monitor, held, false, timing);
         self.apply_state(ctx, next);
         self.smoke_tick(ctx, now);
+        self.settings_window.sync(
+            ctx,
+            &self.editor,
+            &self.config,
+            self.store.as_ref().is_some_and(ConfigStore::is_blocked),
+            &self.config_path,
+        );
         match self.state {
             DockVisibility::Hidden => ctx.request_repaint_after(
                 timing
@@ -286,44 +304,27 @@ impl eframe::App for DockApp {
                 .hover_pos()
                 .is_some_and(|p| i.viewport_rect().contains(p))
         }) || egui::Popup::is_any_open(&ctx)
+            || super::dock_drag::active(&ctx)
             || ctx.input(|i| !i.raw.hovered_files.is_empty());
         if !self.state.is_hidden() {
-            let dropped = ctx.input_mut(|i| std::mem::take(&mut i.raw.dropped_files));
-            if !dropped.is_empty() {
-                let paths: Vec<_> = dropped.iter().map(|f| f.path().to_path_buf()).collect();
-                self.pending.push(Command::DropPaths(paths));
-            }
             if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
                 self.pending.push(Command::Hide);
             }
-            dock_view::render(ui, &self.config, &self.icons, &mut self.pending);
+            let external_point = ctx
+                .input(|i| !i.raw.hovered_files.is_empty() || !i.raw.dropped_files.is_empty())
+                .then(|| self.window.cursor_client_points().ok())
+                .flatten()
+                .map(|(x, y)| egui::pos2(x, y));
+            dock_view::render(
+                ui,
+                &self.config,
+                &self.icons,
+                external_point,
+                &mut self.pending,
+            );
             self.queue_smoke_capture(&ctx);
         }
-        if self.editor.open {
-            let blocked = self.store.as_ref().is_some_and(ConfigStore::is_blocked);
-            ctx.show_viewport_immediate(
-                egui::ViewportId::from_hash_of("settings"),
-                egui::ViewportBuilder::default()
-                    .with_title("MaXImDock — 設定")
-                    .with_inner_size([880.0, 760.0])
-                    .with_min_inner_size([680.0, 520.0]),
-                |ui, _class| {
-                    self.editor.render(
-                        ui,
-                        &self.config,
-                        blocked,
-                        &self.config_path,
-                        &mut self.pending,
-                    );
-                    if let Some(smoke) = &mut self.smoke {
-                        smoke.record_settings_frame();
-                    }
-                },
-            );
-            if !self.editor.open {
-                ctx.request_repaint();
-            }
-        }
+        self.settings_window.show(&ctx, self.editor.open);
         let held = self.inside || self.editor.open || !self.config.dock.auto_hide;
         if !self.pending.is_empty()
             || matches!(self.state, DockVisibility::Visible { .. }) && !held

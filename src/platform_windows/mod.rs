@@ -9,13 +9,15 @@ pub use tray::*;
 mod icon;
 pub use icon::*;
 mod file_dialog;
+mod file_drop;
 pub use file_dialog::{FilePicker, FileSelection, PickKind};
+pub use file_drop::open_files_with_app;
 use windows::{
     Win32::{
         Foundation::{HWND, POINT, RECT},
         Graphics::Gdi::{
             GetMonitorInfoW, HMONITOR, MONITOR_DEFAULTTONULL, MONITOR_DEFAULTTOPRIMARY,
-            MONITORINFO, MonitorFromPoint, MonitorFromWindow,
+            MONITORINFO, MonitorFromPoint, MonitorFromWindow, ScreenToClient,
         },
         UI::{
             HiDpi::GetDpiForWindow,
@@ -248,6 +250,22 @@ impl DockWindow {
     pub fn dpi(&self) -> u32 {
         // SAFETY: live eframe HWND, no pointers.
         unsafe { GetDpiForWindow(self.hwnd) }
+    }
+    /// External OLE drags need not deliver egui PointerMoved events.
+    pub fn cursor_client_points(&self) -> Result<(f32, f32), PlatformError> {
+        let mut point = POINT::default();
+        // SAFETY: live HWND and writable POINT. Conversion stays in the adapter.
+        unsafe {
+            GetCursorPos(&mut point).map_err(|e| error("GetCursorPos", e))?;
+            ScreenToClient(self.hwnd, &mut point)
+                .ok()
+                .map_err(|e| error("ScreenToClient", e))?;
+        }
+        let scale = self.dpi() as f32 / 96.0;
+        if scale <= 0.0 {
+            return Err(PlatformError::Invalid("invalid window DPI"));
+        }
+        Ok((point.x as f32 / scale, point.y as f32 / scale))
     }
     pub fn show_without_activation(&self) {
         // SAFETY: live HWND. Return value is previous visibility, not an error code.

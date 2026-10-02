@@ -1,5 +1,31 @@
 # 実装・検証記録
 
+## 外部ファイルをドロップ先アプリで開く（2026-10-03）
+
+ユーザー指定「アプリで開く。登録は設定から」に従い、Dock全体への外部drop登録を廃止。ui/dock_drop.rsはカード矩形とclipの判定・受け入れ表示・OpenDropped／RejectDrop発行のみ、ui/app/dock_actions.rsが安定UUIDから現在の登録項目を選択しWindows adapterに接続する。platform_windows/file_drop.rsはexe／lnkの実行計画・全ファイル検証・引用・Shell起動を担当。設定のファイル選択は従来のitem_importでdraftに追加しApplyで保存する。外部dropは設定・未保存draftを変更せず、コピー／移動・フォルダーdropも行わない。
+
+lnkはIPersistFile／IShellLinkWでexeと既存引数・作業ディレクトリを取り出す。文書／フォルダーへのlnk、非ファイル、欠損、非Unicode、NUL、長すぎる引数は起動前に拒否。複数ファイルを絶対パスで引用し、一度だけ渡す。独自のcmd／PowerShell経由は使わない。Shell起動は文書に引数を渡さずexeへ渡す方式とする（[ShellExecuteW仕様](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew)、[IShellLinkW::GetPath仕様](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishelllinkw-getpath)）。COMはscopeで初期化／解放する。追加依存・設定スキーマ変更なし。
+
+OLE drag中はegui pointer更新が届かない場合があるため、Windows adapterでGetCursorPos→ScreenToClient→points変換を行う。外部hover時だけ33msの再描画で対象カードの枠／「このアプリで開く」を更新する。未知位置／clip外／URL／フォルダー／空白へのdropは案内のみ。
+
+fmt／clippy --all-targets -D warnings／43 tests成功。四辺のheadless routingでOpenDroppedは1回、URL／フォルダー／空白／clip外／未知位置はRejectDrop、設定不変を検査。Windowsの実ShellExecuteWで一時ディレクトリにコンパイルした専用receiverをexe／lnk両方から起動し、日本語・空白・&を含む複数パスとlnk既存引数がargvに正確に届くこと、入力ファイル内容不変を検査。ユーザーのアプリは起動しない。Explorerの実OLE操作、混在DPI位置判定、各アプリの引数対応は手動未検証。
+
+native smokeの再実行で、settings初回生成を非表示への遷移と同じpassで行うと、eframe 0.36.2 Glowのimmediate rendererがcallbackを実行できずpanicする経路を再現。利用版sourceでtimed paint時のevent-loop contextとimmediate生成依存を確認し、ui/settings_window.rsへdeferred viewportの接続を分離した。非表示childを一つ準備しておき、logicからVisible commandで開く。Editorのowned snapshotとchannelで編集／commandをAppへ戻し、App強参照・Win32・I/Oをcallbackに入れない。非表示callback無操作と編集結果／Apply commandの受信をテスト。hidden rootから設定を開く回復経路を維持するための修正であり、毎回Dockを表示して代替しない。
+
+修正後native smoke成功: 実hide/show30回、hidden poll92回、689 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASS、終了コード0。並べ替え保存／再読込、未保存draft拒否、意図した競合保存失敗時の順序維持、外部drop拒否時の登録なし、hidden rootでの設定表示を検証。競合テストのERRORログ1回は想定内。設定のdeferred接続は実操作による長時間編集・X閉じ／再開を別途手動確認する。
+
+未実装理由: UWP／Shell namespace／スクリプト／文書カードはアプリとしての引数契約が異なるため対象外。移動済みlnkの自動探索・修復やlnkの起動属性の完全再現はしない。フォルダーへのコピー／移動とDock登録はユーザー指定の対象外。ファイルを本当に開いたかは受け取り先アプリに依存し、Shellの成功だけでは判定できない。Phase 2の設定・保存は維持、Phase 3はこの外部drop起動に仕様変更済み。既存の手動未検証項目は以下の記録を維持する。
+
+## Dock カードのドラッグ並べ替え（2026-10-03）
+
+ユーザー要望によりDock内DnDを実装。egui標準payloadにUUIDを持たせ、カード中心に対する挿入位置を主軸方向で計算して線を表示。release時だけReorder commandを発行し、core::Config::reorder_beforeで安定IDを用いてdraftを作成、既存の検証／競合検出／atomic save成功後に反映する。未保存設定がある場合は拒否。自身／隣接同位置はno-op、削除済みIDは拒否。ドラッグ中はhiddenへ遷移させず、Esc／外へのreleaseは取消。外部ファイルhoverと内部payloadを混同せず、現在の外部dropは上記のアプリ起動に限定する。
+
+責務分離: ui/dock_view/card.rsはカード描画とクリック／drag source、ui/dock_drag.rsは主軸geometryと内部drop feedback／command発行、ui/app/dock_actions.rsは並べ替えstage／保存と外部drop起動接続、coreはID・順序の操作。Appのfieldは公開せず、native／ファイル処理を描画へ入れない。依存・設定スキーマ追加なし。
+
+fmt／clippy --all-targets -D warnings／36 tests成功。四辺の疑似pointer press→move→releaseでcommandが1回だけ発行されLaunchされないこと、Esc／Dock外取消をheadless UIで検査。ID保持・stale ID拒否・TOML往復も追加。native smokeでは並べ替えのApply/save/reload、未保存draft保護、外部編集による保存失敗で順序維持を検証（意図した競合のERRORログが1回出るが成功）。30 hide/show、poll91回、645 frames、3種のPASSと正常終了。OSの実マウスによるドラッグ操作／混在DPIは未検証。
+
+外部drop起動は上記で対応済み。未実装: 長いDockのドラッグ端での自動スクロール・ドラッグ追従ghost（まず確実な順序保存とclick競合防止に限定）。ホイールスクロールと設定のUp/Downを維持。その他のPhase 2/3手動残件は既存記録のまま。
+
 ## 高解像度 Shell アイコン（2026-10-03）
 
 縮小表示にはlinear mipmapを有効化。利用版egui_glow 0.36.2のtexture uploadがgenerate_mipmapを呼ぶことをsourceで確認し、256pxから小さいDockサイズへ描画する際のaliasingを抑える。サイズ／DPIに応じた毎回のShell再抽出は追加しない。
@@ -63,7 +89,7 @@ Phase 2/3 の実装状況・残機能は下記の履歴と acceptance を維持�
 | ui/app/actions.rs | UI command の実行、保存・起動・トレイ／選択結果の接続 |
 | ui/app/smoke.rs | native smoke の検証シナリオと計測。通常動作とは分離 |
 | ui/poll_wake.rs | hidden-only repaint wake、atomic state、thread の停止／join |
-| ui/item_import.rs | ドロップ項目の検証・順序付き draft 作成とそのテスト |
+| ui/item_import.rs | 設定のファイル選択項目の検証・順序付き draft 作成とそのテスト |
 | platform_windows/file_dialog.rs | rfd worker、受信状態、多重起動防止、選択／取消／切断の結果 |
 
 actions/smoke は App の子モジュールとして必要な接続処理をまとめる。App の field は private のままで、分割のために広い公開 API や getter/setter を増やさない。PollWake は set_hidden だけを公開し atomic を外へ出さない。FilePicker は egui、設定、HWND を保持せず、呼出側から渡された wake callback と owned PathBuf だけで橋渡しする。設定画面と Dock の描画は従来の settings/dock_view、Shell/GDI は Windows 層を維持する。
@@ -224,7 +250,9 @@ MonitorFromPoint(MONITOR_DEFAULTTONULL) はカーソルを含むモニターを�
 
 96/144 DPI のサイズ・負座標 anchor はテスト済みだが、実機100%/150%や混在倍率での移行は未確認。切断で pinned handle の照会に失敗したら通知し hide/show で再選択する。切断・解像度変更への完全自動追従監視は未実装。
 
-### 外部 DnD と設定保護
+### 外部 DnD と設定保護（当時の登録方式・履歴）
+
+以下の登録方式は上記のユーザー指定で廃止。現在はDockのアプリカードで開き、登録は設定から行う。並べ替えは上記で実装済み。
 
 egui-winit 0.36.2 の WindowEvent::DroppedFile → RawInput.dropped_files、DroppedFile::path() を source で確認。root の drag_and_drop を明示有効化し、イベントを一度消費して DropPaths command を発行。hovered_files がある間は auto hide を保留。複数の既存ファイル／フォルダを入力順で登録し、重複／無効パスは通知する。
 

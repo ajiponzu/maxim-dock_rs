@@ -16,6 +16,7 @@ enum Page {
     Advanced,
 }
 
+#[derive(Clone, PartialEq)]
 pub(super) struct Editor {
     pub open: bool,
     pub draft: Config,
