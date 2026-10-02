@@ -1,13 +1,16 @@
 use crate::core::{DockEdge, MonitorRect, ScreenPoint, dock_anchor_position};
 use raw_window_handle::RawWindowHandle;
 use std::ffi::c_void;
+use std::os::windows::ffi::OsStringExt;
+mod config_store;
+pub use config_store::*;
 use windows::{
     Win32::{
         Foundation::{HWND, POINT, RECT},
         Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MonitorFromPoint},
         UI::{
             HiDpi::GetDpiForWindow,
-            Shell::{CSIDL_PROFILE, SHGetFolderPathW, ShellExecuteW},
+            Shell::{CSIDL_APPDATA, CSIDL_PROFILE, SHGetFolderPathW, ShellExecuteW},
             WindowsAndMessaging::*,
         },
     },
@@ -77,6 +80,34 @@ pub fn home_directory() -> Result<String, PlatformError> {
     Ok(String::from_utf16_lossy(&buffer[..end]))
 }
 
+pub fn configuration_path() -> Result<std::path::PathBuf, PlatformError> {
+    let mut buffer = [0u16; 260];
+    // SAFETY: fixed MAX_PATH output buffer, platform-resolved roaming AppData.
+    unsafe { SHGetFolderPathW(None, CSIDL_APPDATA as i32, None, 0, &mut buffer) }
+        .map_err(|e| error("SHGetFolderPathW(AppData)", e))?;
+    let end = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
+    Ok(
+        std::path::PathBuf::from(std::ffi::OsString::from_wide(&buffer[..end]))
+            .join("MaXImDock")
+            .join("config.toml"),
+    )
+}
+
+pub fn japanese_font() -> Result<Option<Vec<u8>>, std::io::Error> {
+    let Some(windows_directory) = std::env::var_os("WINDIR") else {
+        return Ok(None);
+    };
+    let directory = std::path::PathBuf::from(windows_directory).join("Fonts");
+    for name in ["meiryo.ttc", "YuGothM.ttc"] {
+        match std::fs::read(directory.join(name)) {
+            Ok(bytes) => return Ok(Some(bytes)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(None)
+}
+
 pub trait ShellLauncher {
     fn open_target(&self, target: &str) -> Result<(), PlatformError>;
 }
@@ -125,6 +156,7 @@ impl DockWindow {
         edge: DockEdge,
         monitor: MonitorRect,
         points: (f32, f32),
+        always_on_top: bool,
     ) -> Result<(), PlatformError> {
         // SAFETY: live eframe HWND. DPI conversion is centralized here.
         let dpi = unsafe { GetDpiForWindow(self.hwnd) };
@@ -143,7 +175,11 @@ impl DockWindow {
         unsafe {
             SetWindowPos(
                 self.hwnd,
-                Some(HWND_TOPMOST),
+                Some(if always_on_top {
+                    HWND_TOPMOST
+                } else {
+                    HWND_NOTOPMOST
+                }),
                 anchor.x,
                 anchor.y,
                 size.0,

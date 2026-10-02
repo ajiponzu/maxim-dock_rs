@@ -1,5 +1,16 @@
 # 実装・検証記録
 
+## Phase 2 依存選定（実装前）
+
+- serde 1 + toml 1: 指定された version 付き設定の読み書き。独自パーサーよりスキーマと往復検証を優先。
+- uuid 1（serde/v4）: 編集・並び替え後も安定した項目 ID。配列添字を ID にしない。
+- rfd 0.17: 指定されたネイティブファイル/フォルダ追加ダイアログ。Win32 COM を自前実装しない。
+- url 2: http/https の構文と重複キーを検証。文字列の前方一致だけでは不正ホストを見逃すため採用。
+- tempfile 3: 実設定を触らず保存・破損復帰をテストする独立ディレクトリ。native smoke も一時設定で Apply/save と再読込を検証するため runtime で使用。
+- windows の Storage_FileSystem feature: 同一ディレクトリの一時ファイルを MoveFileExW で置換。remove+rename の消失区間を避ける。
+
+ユーザー指示により既定辺は Top。保存済みの明示的な辺は尊重する。設定画面は別 viewport、変更は Apply and save により検証・保存後に反映。破損設定の上書きは明示的なバックアップ操作まで禁止する。
+
 ## Phase 1 の設計と依存選定（2026-10-02）
 
 単一 crate、`src/core` / `src/platform_windows` / `src/ui` の境界を維持する。
@@ -73,7 +84,7 @@ Win32 API:
 
 座標は cursor / monitor / anchor が物理 px、egui は points。zoom_factor は初期値 1、native DPI / 96 を window adapter でサイズへ適用。混在 DPI のモニター移行は Phase 3 で調査する。DPI 変更中の再配置や任意 UI zoom の補正は未実装。Win32 の失敗はログへ原因を保持し、再試行または短い UI エラーを示す。ログ対象はファイル basename、URL は query/fragment を除く。Home のフルパスやファイル内容はログに出さない。
 
-## Phase 2 と Phase 3 の対応状況・理由
+## Phase 1 終了時の Phase 2/3 状況（履歴）
 
 | Phase | 対応済み基盤 | 未実装 | 理由 |
 | --- | --- | --- | --- |
@@ -82,10 +93,36 @@ Win32 API:
 
 トレイ: 未採用。Phase 3 で tray-icon の Windows message loop と eframe 共存を調べ、初期化失敗を Dock 本体の致命エラーにしない。設定画面を閉じても終了しない設計が必要。
 
-アイコン: 現在は文字ボタン。HICON / GDI リソースを取得していない。Phase 2 で安定した fallback、Phase 3 で最小の Shell 抽出方式を選定し、HICON の DestroyIcon と bitmap の解放、キャッシュ、失敗 fallback を検証する。
+アイコン: Phase 1 時点は文字ボタン。HICON / GDI リソースを取得していない。Phase 2 で安定した fallback、Phase 3 で最小の Shell 抽出方式を選定し、HICON の DestroyIcon と bitmap の解放、キャッシュ、失敗 fallback を検証する。
 
 Phase 2 推奨順: version 付き serde/toml モデルと検証 → 元ファイル保持と atomic replace を備えた保存 → 編集・順序・重複検出 → 四辺設定と即再配置 → rfd/URL 追加 → fallback アイコン。Phase 3 の DnD はこの保存経路を再利用する。
 
-## 再利用ルール
+## Phase 2 実装と検証（2026-10-02）
+
+実装: Top 既定値、version 1 TOML、UUID/IconSource/順序付き項目、設定 child viewport、項目追加/名前編集/順序/削除、四辺設定、タイミング/表示設定、ネイティブファイル/フォルダ選択、fallback アイコン、即時再配置。不正設定・保存失敗は元ファイルを保持して可視の設定画面に通知する。
+
+設定 I/O は platform の ConfigStore に集約。SHGetFolderPathW(CSIDL_APPDATA) で保存先を取得し、同一ディレクトリの create_new 一時ファイルに書込み → sync_all → MoveFileExW(REPLACE_EXISTING | WRITE_THROUGH) で置換する。元ファイルを remove してから rename しない。読み込んだ bytes と保存前の bytes を比較して外部編集を検出する。この比較は通常の競合検出であり、別プロセスと厳密な排他ロックを共有する方式ではない。
+
+不正設定は自動上書きせず save をブロックする。明示 UI 操作でバイト同一の UUID 名バックアップを作り、その後の Apply で置換を許可する。未対応 version/未知フィールドも fallback し、黙って設定を捨てない。保存済み missing path は取り外したドライブを想定して保持し、追加・起動時に存在確認する。
+
+Shell 起動、保存、ダイアログは drawing が発行する command を logic 側で処理する。rfd の同期 picker は専用 thread で動かし、mpsc + request_repaint で結果を UI thread へ返す。UI thread の hidden cursor polling を止めない。rfd の picker API は失敗と取消を詳細な Result で区別しないため、手入力追加も提供する。設定や HWND を worker に持たせない。
+
+設定 viewport は show_viewport_immediate を利用。root が hidden でも child が可視なら eframe が UI を更新することを native smoke で確認した。設定を閉じる時は child を描画対象から外し、root Close を発行しない。UI zoom はキーボードで変更不可にし、DPI 単位のずれを防ぐ。Windows の Meiryo / Yu Gothic を optional fallback として読込み、日本語項目の表示に利用する。フォントを配布しない。
+
+検証:
+
+- `cargo fmt --check` / `cargo clippy -- -D warnings` / `cargo test`: 成功、15 tests。
+- config tests: 四辺 TOML round-trip、ID/順序、NaN/タイミング/不正 URL/version/重複、UTF-8/TOML 不正保持、明示バックアップ、Unicode 保存先、外部編集、置換失敗で元ファイル保持と temp cleanup。
+- `cargo run --locked -- --smoke-test`: 最終コードで終了コード 0。Top 起動、実 hide/show 30 回（四辺を切替）、hidden GetCursorPos 91 回、描画 655 frames。NATIVE_SMOKE_PASS / PHASE2_SMOKE_PASS。
+- native command driver で rename/reorder/add/delete と Apply/save/reload、アイコンサイズ/auto hide/最前面、四辺の即時再配置を確認。非表示中の Apply はウィンドウを表示・移動せず、次回 show で新辺を適用することも検査。hidden root で設定が描画され、child を閉じた後も root が継続する。
+- smoke は tempfile 配下の独立設定を使い、終了時に回収する。実 AppData の設定を読み書きしない。
+
+実際のクリック/ネイティブ picker、実カーソル進入、Shell 起動、100%/150% DPI、日本語入力の手動確認は未実施。自動 driver と手動受け入れを混同しない。
+
+現在の Phase 3 残作業: tray/event loop 統合、カーソルモニター選択と表示中固定、mixed DPI、外部 DnD を今回の保存・重複検出へ接続、Shell icon cache/カスタム画像と GDI 所有権、ログイン起動調査。Phase 2 の設定操作を先に安定させるため未実装。全項目の fallback と基本の起動失敗 UI は今回対応済み。
+
+変更ファイル: Cargo.toml/lock、src/core/mod.rs と新規 config.rs、src/main.rs、src/platform_windows/mod.rs と新規 config_store.rs、src/ui/mod.rs と新規 commands.rs/dock_view.rs/settings.rs、README、notes/acceptance、ローカル開発スキル。Phase 1 の幾何・状態機械は維持した。
+
+## 再利用ルール（Phase 2 更新）
 
 `AGENTS.md` と `.agents/skills/maximdock-development/SKILL.md` に、hidden logic、可視性操作の所有、DPI 単位、Win32 戻り値、実機/疑似入力の区別を短く整理。仕様全体は重複せず brief と検証記録を参照する。

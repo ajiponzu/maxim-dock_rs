@@ -1,13 +1,17 @@
+mod config;
 mod geometry;
 mod visibility;
 
+pub use config::*;
 pub use geometry::*;
+use serde::{Deserialize, Serialize};
 pub use visibility::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DockEdge {
-    #[default]
     Bottom,
+    #[default]
     Top,
     Left,
     Right,
@@ -37,16 +41,46 @@ impl std::str::FromStr for DockEdge {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TargetKind {
     Path,
     Url,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DockItem {
-    pub label: &'static str,
+    pub id: uuid::Uuid,
+    pub label: String,
     pub target: String,
     pub kind: TargetKind,
+    pub icon: IconSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum IconSource {
+    #[default]
+    Auto,
+    File {
+        path: std::path::PathBuf,
+    },
+    Builtin {
+        name: String,
+    },
+}
+
+impl DockItem {
+    pub fn new(label: impl Into<String>, target: impl Into<String>, kind: TargetKind) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            label: label.into(),
+            target: target.into(),
+            kind,
+            icon: IconSource::Auto,
+        }
+    }
 }
 
 pub fn validate_target(target: &str, kind: TargetKind) -> Result<(), &'static str> {
@@ -58,15 +92,7 @@ pub fn validate_target(target: &str, kind: TargetKind) -> Result<(), &'static st
             Err("Target not found. Check the path and permissions.")
         }
         TargetKind::Url => {
-            let rest = target
-                .strip_prefix("https://")
-                .or_else(|| target.strip_prefix("http://"));
-            if rest.is_some_and(|s| {
-                let host = s.split(['/', '?', '#']).next().unwrap_or_default();
-                !host.is_empty()
-                    && !host.contains('@')
-                    && !s.chars().any(|c| c.is_whitespace() || c.is_control())
-            }) {
+            if valid_url(target) {
                 Ok(())
             } else {
                 Err("Specify http:// or https:// with a valid host name.")
@@ -74,6 +100,23 @@ pub fn validate_target(target: &str, kind: TargetKind) -> Result<(), &'static st
         }
         TargetKind::Path => Ok(()),
     }
+}
+
+pub fn valid_url(target: &str) -> bool {
+    (target
+        .get(..7)
+        .is_some_and(|p| p.eq_ignore_ascii_case("http://"))
+        || target
+            .get(..8)
+            .is_some_and(|p| p.eq_ignore_ascii_case("https://")))
+        && !target.chars().any(|c| c.is_whitespace() || c.is_control())
+        && !target.contains('\\')
+        && url::Url::parse(target).is_ok_and(|u| {
+            matches!(u.scheme(), "http" | "https")
+                && u.host_str().is_some()
+                && u.username().is_empty()
+                && u.password().is_none()
+        })
 }
 
 #[cfg(test)]
@@ -102,6 +145,10 @@ mod tests {
             "file://example",
             "https://a b",
             "https://a\0b",
+            "https:example.com",
+            "http:/example.com",
+            "https://user:password@example.com/",
+            "https://example.com:bad/",
         ] {
             assert!(validate_target(target, TargetKind::Url).is_err());
         }

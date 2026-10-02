@@ -10,18 +10,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| "maxim_dock_rs=info".into()),
         )
         .init();
-    let mut edge = DockEdge::Bottom;
+    let mut edge: Option<DockEdge> = None;
     let mut smoke = false;
+    let mut config_path = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--edge" => edge = args.next().ok_or("--edge requires a value")?.parse()?,
+            "--edge" => edge = Some(args.next().ok_or("--edge requires a value")?.parse()?),
             "--smoke-test" => smoke = true,
+            "--config" => {
+                config_path = Some(std::path::PathBuf::from(
+                    args.next().ok_or("--config requires a path")?,
+                ))
+            }
             _ => return Err(format!("unknown argument: {arg}").into()),
         }
     }
-    tracing::info!(?edge, "starting MaXImDock Phase 1");
-    let size = if edge.is_horizontal() {
+    tracing::info!(?edge, "starting MaXImDock Phase 2 (default: Top)");
+    let size = if edge.unwrap_or_default().is_horizontal() {
         [310.0, 100.0]
     } else {
         [100.0, 310.0]
@@ -41,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     eframe::run_native(
         "MaXImDock v2",
         options,
-        Box::new(move |cc| Ok(Box::new(DockApp::new(cc, edge, smoke)?))),
+        Box::new(move |cc| Ok(Box::new(DockApp::new(cc, edge, smoke, config_path)?))),
     )?;
     Ok(())
 }

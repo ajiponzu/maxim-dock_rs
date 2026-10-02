@@ -18,3 +18,7 @@ Preserve these project-specific invariants:
 For visibility changes, run fmt, clippy with `-D warnings`, unit tests and `cargo run --locked -- --smoke-test`. The smoke deliberately uses synthetic hot-zone entry; record actual mouse-edge, Shell launch and DPI checks separately. Add tests for changed invariants rather than documentation wording.
 
 Before adding dependencies, record purpose and alternatives in notes. Maintain Phase 1/2/3 acceptance status, reasons for deferred features and unverified manual conditions. Do not mark manual acceptance passed from synthetic input alone.
+
+For Phase 2 configuration changes, preserve version/UUID/order and Top as the default edge. Missing saved paths can represent unplugged drives; validate syntax on load, existence at addition/launch. Do not overwrite unreadable/invalid configurations until explicit byte-preserving backup. Apply only after validation and successful same-directory temporary-file replacement. Check the loaded snapshot before saving to catch external edits.
+
+Drawing produces commands; Shell launch, persistence and dialogs execute outside draw functions. Keep native dialogs off the UI thread so hidden polling continues. Settings use a child viewport and closing that viewport must not close the root app. The native smoke uses a temporary config and verifies Apply/save/reload, immediate edge repositioning and settings with a hidden root.
