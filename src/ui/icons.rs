@@ -106,14 +106,18 @@ impl Icons {
             } // ignore stale edits/deletions
             match loaded.pixels {
                 Ok(Some(image)) => {
-                    entry.texture = Some(ctx.load_texture(
-                        format!("icon-{}", loaded.id),
-                        egui::ColorImage::from_rgba_unmultiplied(
-                            [image.width, image.height],
-                            &image.rgba,
+                    entry.texture = Some(
+                        ctx.load_texture(
+                            format!("icon-{}", loaded.id),
+                            egui::ColorImage::from_rgba_unmultiplied(
+                                [image.width, image.height],
+                                &image.rgba,
+                            ),
+                            // Downsample high-resolution icons without aliasing at small Dock sizes.
+                            egui::TextureOptions::LINEAR
+                                .with_mipmap_mode(Some(egui::TextureFilter::Linear)),
                         ),
-                        egui::TextureOptions::LINEAR,
-                    ));
+                    );
                 }
                 Ok(None) => {}
                 Err(e) => tracing::warn!(item_id = %loaded.id, error = %e, "Shell icon fallback"),

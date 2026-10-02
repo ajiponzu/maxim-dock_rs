@@ -63,6 +63,7 @@ impl DockApp {
                             self.config = config;
                             self.icons.sync(&self.config);
                             apply_theme(ctx, &self.config.appearance.theme);
+                            crate::ui::theme::configure(ctx, &self.config.appearance);
                             self.editor.draft = self.config.clone();
                             self.editor.message = Some("Saved and applied.".into());
                             self.wake = PollWake::new(ctx.clone(), self.config.dock.timing());

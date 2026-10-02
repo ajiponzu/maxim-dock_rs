@@ -2,6 +2,56 @@
 
 記録日: 2026-10-03。チェックは実際に確認した条件のみ。未チェックの条件には、実装済みだが手動未検証のものも含む。
 
+## 高解像度 Shell アイコン（2026-10-03）
+
+- [x] Shell Image Factoryで256pxを要求。サムネイルは使わず、失敗時はlegacy Shellアイコンへ戻る
+- [x] 実exe・フォルダー・関連付け文書・既定ブラウザーで256×256pxの取得を検証（従来exe等は32×32px）
+- [x] 高解像度優先／legacy fallback、BGRA・半透明alpha変換をテスト。既存のユーザー画像優先・URL fallbackは維持
+- [x] 100回のShell抽出でGDI／USERハンドル増加各+2以下。fmt／clippy --all-targets -D warnings／34 tests成功
+- [x] native smoke：実hide/show30回、poll91回、643 frames、3種のPASSと正常終了。Dock描画PNGを目視確認
+- [x] linear mipmap縮小フィルターを追加し、最終native smokeも正常終了（30 hide/show、poll91回、652 frames、3種のPASS）。最終Dock PNGを目視確認
+- [ ] 多様なexe／lnk／関連付け製品・100%／150%混在DPIでの実表示の手動検証
+
+高解像度アイコンの残件はFactory方式で対応。Image List方式そのものやthumbnail表示は採用しない。元画像の細部やMAX_PATH／モノクロ特殊対応の制約はnotesを参照。
+
+## URL の既定ブラウザーアイコン（2026-10-03）
+
+- [x] URLの自動アイコンはプロトコル別の既定ブラウザーを使用。ユーザー画像・明示Builtinを優先、失敗時は地球fallback
+- [x] 実Windowsのhttp／https関連付けを照会し、ブラウザーexeのShell画像と一致することをテスト
+- [x] カスタム優先、欠損画像fallback、照会失敗fallback、Builtin維持をテスト。fmt／clippy／31 tests成功
+- [x] native smoke：hide/show30回、poll91回、652 frames、3種のPASSと正常終了
+- [ ] 実際の既定ブラウザー変更後、再読み込みで切り替わることの手動確認
+
+関連付けの自動監視は未実装。変更後は「詳細 → アイコンを再読み込み」または再起動を使用する。ブラウザーexeを解決できない関連付け／既存Shell変換非対応は地球fallback。
+
+## カラーテーマ（2026-10-03）
+
+- [x] カラーコードのクリックでピッカーを開く。ポップアップ内で直接入力も可能。疑似押下／解放で開くことと色の不意の変更なしをテスト（29 tests、fmt／clippy成功）
+
+- [x] 標準／Ocean／Forest／Roseとカスタム。Dock／設定へ共通で反映
+- [x] 明暗モード別プリセット、カスタム9色、色ピッカー／#RRGGBB入力、プリセットからのコピー、draftプレビューを実装
+- [x] 旧設定の互換読込、全パレットの保存形式往復、不正色・未知名拒否をテスト
+- [x] 両明暗／全パレット／3ページの最小サイズheadless描画、styleへの色反映と標準への復帰をテスト
+- [x] fmt / clippy --all-targets -D warnings / test（28 tests）、native smokeの3種のPASSと正常終了。5パレット切替とApply/save/reloadを実行
+- [x] カスタム設定の実描画PNGを確認（同一rendererのrootプレビュー、child HWND撮影ではない）
+- [ ] 実ピッカー操作、設定クリック／スクロール／適用・破棄・通常再起動の手動検証
+- [ ] 全プリセットの実画面での見え方と混在DPIの手動検証
+
+CSSと外部テーマファイルのインポート、ホットリロード、コントラスト自動補正は未実装。既存TOMLと安全な保存経路を利用し、追加のUI基盤や監視処理を導入しないため。カスタム色は明暗共通の固定色。操作方法は color-themes.md。Phase 4のテーマ統合は今回対応し、アニメーション等の他機能は未実装のまま。
+
+## UI 更新 — 読みやすさと描画確認（2026-10-03）
+
+- [x] Dock の角丸パネル・ホバー／フォーカス強調・歯車設定ボタン・16 ptラベルを実描画 PNG で確認
+- [x] 設定を Dock／アイテム／詳細へ分割、本文・ボタン17 pt、入力欄36 pt高、保存／破棄フッターを実描画で確認
+- [x] ダーク／ライト双方の文字サイズをテスト。最小680×520 ptで全ページを headless 描画し、不意の設定変更や command 発行がないことを検査
+- [x] 四辺と24/56/128 ptアイコンでタイル寸法・frame budgetをテスト。zoom=1 と platform DPI 換算を維持
+- [x] fmt / clippy -D warnings / test（26 tests）、最終 native smoke 正常終了。実hide/show30回、poll92回、645 frames、3種の PASS
+- [x] optional capture smoke で Dock と設定3ページの PNG を保存して目視確認。設定 PNG は同一 renderer の root プレビューであり、child HWND 自体の撮影ではない
+- [ ] 実クリックによるページ切替・編集・適用・破棄、最小サイズでのスクロールとキーボード操作の手動検証
+- [ ] ライト配色・100%/150%混在 DPI・長い日本語名の実画面での操作性検証
+
+配色とページ構成は更新したが、Phase 2 の保存安全性、Phase 3 の tray／モニター／Shell／DnD は既存経路を維持。edge 再表示判定は今回変更しない。Phase 4 のアニメーション・スタートアップ登録等の残機能は下記と notes に記載したまま、UI 更新の範囲外として未実装。
+
 ## UI 責務分離 — 回帰検証
 
 - [x] ui/mod.rs はモジュール宣言と公開入口だけ。ui::DockApp を維持
@@ -81,4 +131,4 @@
 - [x] ログイン時起動の設計調査を notes に記録。OS へのスタートアップ登録は変更しない
 - [x] fmt / clippy -D warnings / test（21 tests）、native smoke の NATIVE / PHASE2 / PHASE3_SMOKE_PASS
 
-未実装: Dock 内 DnD 並び替え、モノクロ Shell icon の特殊変換、MAX_PATH 超の Shell icon 抽出、高解像度 Shell image list、スタートアップ登録、Phase 4 の拡大等。安定した Up/Down と fallback を残し、複雑な Shell/画像経路と OS 自動起動の変更は後回し。混在 DPI／OS 実入力は自動テストで代替できないため未合格。詳細と検証手順は notes を参照。
+未実装: Dock 内 DnD 並び替え、モノクロ Shell icon の特殊変換、MAX_PATH 超の Shell icon 抽出、スタートアップ登録、Phase 4 の拡大等。高解像度は上記Factory方式で対応済み。安定した Up/Down と fallback を残し、複雑な Shell/画像経路と OS 自動起動の変更は後回し。混在 DPI／OS 実入力は自動テストで代替できないため未合格。詳細と検証手順は notes を参照。

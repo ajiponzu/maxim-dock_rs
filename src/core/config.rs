@@ -57,14 +57,73 @@ impl DockSettings {
 pub struct Appearance {
     pub theme: String,
     pub background_opacity: f32,
+    pub palette: String,
+    pub colors: Box<CustomColors>,
 }
 impl Default for Appearance {
     fn default() -> Self {
         Self {
             theme: "system".into(),
             background_opacity: 0.86,
+            palette: "default".into(),
+            colors: Box::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CustomColors {
+    pub background: String,
+    pub panel: String,
+    pub field: String,
+    pub border: String,
+    pub text: String,
+    pub muted: String,
+    pub accent: String,
+    pub on_accent: String,
+    pub hover: String,
+}
+impl Default for CustomColors {
+    fn default() -> Self {
+        Self {
+            background: "#0F141D".into(),
+            panel: "#18202D".into(),
+            field: "#212C3C".into(),
+            border: "#344256".into(),
+            text: "#EDF2FA".into(),
+            muted: "#9BACC4".into(),
+            accent: "#5E9DFF".into(),
+            on_accent: "#081830".into(),
+            hover: "#284061".into(),
+        }
+    }
+}
+impl CustomColors {
+    pub fn values(&self) -> [&str; 9] {
+        [
+            &self.background,
+            &self.panel,
+            &self.field,
+            &self.border,
+            &self.text,
+            &self.muted,
+            &self.accent,
+            &self.on_accent,
+            &self.hover,
+        ]
+    }
+}
+pub fn parse_hex_color(value: &str) -> Option<[u8; 3]> {
+    let hex = value.strip_prefix('#')?;
+    if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some([
+        u8::from_str_radix(&hex[0..2], 16).ok()?,
+        u8::from_str_radix(&hex[2..4], 16).ok()?,
+        u8::from_str_radix(&hex[4..6], 16).ok()?,
+    ])
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -103,6 +162,20 @@ impl Config {
         }
         if self.items.len() > 256 {
             return fail("At most 256 Dock items are supported.");
+        }
+        if !["default", "ocean", "forest", "rose", "custom"]
+            .contains(&self.appearance.palette.as_str())
+        {
+            return fail("Unknown color palette.");
+        }
+        if self
+            .appearance
+            .colors
+            .values()
+            .iter()
+            .any(|value| parse_hex_color(value).is_none())
+        {
+            return fail("Theme colors must use #RRGGBB, for example #5E9DFF.");
         }
         let mut ids = HashSet::new();
         let mut targets = HashSet::new();
@@ -178,6 +251,36 @@ pub fn target_key(target: &str, kind: TargetKind) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn palettes_round_trip_and_legacy_configs_default_without_losing_items() {
+        let mut config = Config::defaults("missing-home".into());
+        let mut legacy = toml::Value::try_from(&config).unwrap();
+        let appearance = legacy
+            .get_mut("appearance")
+            .unwrap()
+            .as_table_mut()
+            .unwrap();
+        appearance.remove("palette");
+        appearance.remove("colors");
+        let restored: Config = toml::from_str(&toml::to_string(&legacy).unwrap()).unwrap();
+        assert_eq!(restored, config);
+        for palette in ["default", "ocean", "forest", "rose", "custom"] {
+            config.appearance.palette = palette.into();
+            config.appearance.colors.accent = "#abcdef".into();
+            config.validate().unwrap();
+            let restored: Config = toml::from_str(&toml::to_string(&config).unwrap()).unwrap();
+            assert_eq!(restored, config);
+        }
+        config.appearance.palette = "unknown".into();
+        assert!(config.validate().is_err());
+        config.appearance.palette = "custom".into();
+        for bad in ["red", "#abc", "#12345678", "#GGFFFF", "#あ123", " #abcdef"] {
+            config.appearance.colors.panel = bad.into();
+            assert!(config.validate().is_err());
+        }
+        assert_eq!(parse_hex_color("#abcdef"), Some([171, 205, 239]));
+    }
 
     #[test]
     fn default_top_and_toml_round_trip_preserve_ids_order_and_edges() {

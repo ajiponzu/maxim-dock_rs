@@ -1,6 +1,7 @@
 //! eframe integration: startup, visibility scheduling, and view composition.
 mod actions;
 mod smoke;
+mod smoke_capture;
 
 use super::{commands::Command, dock_view, icons, poll_wake::PollWake, settings::Editor};
 use crate::{core::*, platform_windows::*};
@@ -75,6 +76,7 @@ impl DockApp {
         cc.egui_ctx
             .options_mut(|options| options.zoom_with_keyboard = false);
         apply_theme(&cc.egui_ctx, &config.appearance.theme);
+        super::theme::configure(&cc.egui_ctx, &config.appearance);
         match japanese_font() {
             Ok(Some(bytes)) => {
                 let mut fonts = egui::FontDefinitions::default();
@@ -184,6 +186,7 @@ impl eframe::App for DockApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.receive_tray();
         self.receive_dialog();
+        self.save_smoke_captures(ctx);
         self.process_commands(ctx);
         self.icons.receive(ctx);
         let now = Instant::now();
@@ -263,6 +266,21 @@ impl eframe::App for DockApp {
             smoke.record_frame();
         }
         let ctx = ui.ctx().clone();
+        if self
+            .smoke
+            .as_ref()
+            .is_some_and(|smoke| smoke.preview_settings)
+        {
+            self.editor.render(
+                ui,
+                &self.config,
+                false,
+                &self.config_path,
+                &mut self.pending,
+            );
+            self.queue_smoke_capture(&ctx);
+            return;
+        }
         self.inside = ctx.input(|i| {
             i.pointer
                 .hover_pos()
@@ -279,18 +297,24 @@ impl eframe::App for DockApp {
                 self.pending.push(Command::Hide);
             }
             dock_view::render(ui, &self.config, &self.icons, &mut self.pending);
+            self.queue_smoke_capture(&ctx);
         }
         if self.editor.open {
             let blocked = self.store.as_ref().is_some_and(ConfigStore::is_blocked);
             ctx.show_viewport_immediate(
                 egui::ViewportId::from_hash_of("settings"),
                 egui::ViewportBuilder::default()
-                    .with_title("MaXImDock Settings")
-                    .with_inner_size([660.0, 700.0])
-                    .with_min_inner_size([520.0, 420.0]),
+                    .with_title("MaXImDock — 設定")
+                    .with_inner_size([880.0, 760.0])
+                    .with_min_inner_size([680.0, 520.0]),
                 |ui, _class| {
-                    self.editor
-                        .render(ui, blocked, &self.config_path, &mut self.pending);
+                    self.editor.render(
+                        ui,
+                        &self.config,
+                        blocked,
+                        &self.config_path,
+                        &mut self.pending,
+                    );
                     if let Some(smoke) = &mut self.smoke {
                         smoke.record_settings_frame();
                     }

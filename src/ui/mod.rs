@@ -6,5 +6,6 @@ mod icons;
 mod item_import;
 mod poll_wake;
 mod settings;
+mod theme;
 
 pub use app::DockApp;

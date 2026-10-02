@@ -9,3 +9,4 @@
 - 次フェーズの未実装項目と理由を notes / acceptance / README に反映する。入力フックや別イベントループを推測で導入しない。
 - Phase 3: モニター再選択は hidden 時だけ。移動前 HWND の DPI を使わない。DnD は未保存 draft と保存競合を保護する。Shell/GDI 抽出は worker と RAII、描画は cache のみ。tray handler の解除可否は利用版 source を確認し、static に App の強参照を残さない。
 - ui/mod.rs は公開入口だけに保つ。App 接続・command 実行・smoke を分離し、native dialog の worker/受信状態は platform に置く。ファイル分割のために App field や atomic を広く公開しない。
+- UI 配色・文字サイズは ui/theme.rs に集約し、両テーマと最小設定サイズを検証する。DPI のため zoom を増やさず、Dock 寸法は描画と同じタイル寸法から計算する。任意の描画確認 PNG と実操作の受け入れは区別する。

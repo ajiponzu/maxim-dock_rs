@@ -15,9 +15,13 @@ cargo run --locked -- --edge bottom
 
 上端の 2 物理 px にカーソルを置くと Dock を表示する。範囲外に出てから既定 500 ms で非表示、再表示直後の 200 ms は保持する。Dock にフォーカスがある時の Esc、または右クリック → Hide で非表示。Esc はグローバルキーではない。表示中にクリックでき、復帰時に不要なフォーカス取得を避ける。
 
-Dock の `...`、または右クリック → Settings で別ウィンドウの設定画面を開く。設定を閉じてもアプリは継続する。設定を開いている間は自動 hide を保留する。明示的に隠した Dock と設定ウィンドウは共存できる。
+Dock の歯車「設定」、または右クリック → 設定で別ウィンドウの設定画面を開く。設定を閉じてもアプリは継続する。設定を開いている間は自動 hide を保留する。明示的に隠した Dock と設定ウィンドウは共存できる。
+
+Dock は角丸パネルと大きめのアイコン、16 pt のラベルを使用する。設定画面は「Dock／アイテム／詳細」の3ページで、本文・ボタンは17 pt、補足は15 pt。配色はシステム／ライト／ダークに対応し、下部の「適用して保存」「変更を破棄」はスクロールしても表示される。Windows の DPI に従って拡大し、独自のズームは変更しない。
 
 設定では次の操作ができる。
+
+カラーテーマは標準／Ocean／Forest／Rose／カスタムから選べます。カスタムは色ボタンや `#RRGGBB`、TOMLで編集可能です。CSS は使用しません。[テーマの設定方法](docs/color-themes.md)を参照してください。
 
 - 表示名の編集、Up / Down の順序変更、Delete
 - Choose files（複数ファイル）/ Choose folder のネイティブダイアログ
@@ -25,7 +29,7 @@ Dock の `...`、または右クリック → Settings で別ウィンドウの�
 - Top / Bottom / Left / Right、アイコンサイズ、間隔、auto hide、hide delay、hot-zone 幅、polling、reveal hold、最前面、不透明度、基本 UI theme
 - Open config folder、Show Dock、Quit app
 
-変更は **Apply and save** で検証・保存してから反映する。可視 Dock の辺・サイズは即再配置、隠れた Dock は次回表示で適用する。保存はフレームごとには行わない。多数の項目は Dock の主軸方向にスクロールする。
+変更は **適用して保存** で検証・保存してから反映する。可視 Dock の辺・サイズは即再配置、隠れた Dock は次回表示で適用する。保存はフレームごとには行わない。多数の項目は Dock の主軸方向にスクロールする。
 
 設定保存先は `%APPDATA%\MaXImDock\config.toml`。初回に Explorer / 現在ユーザーの Home / GitHub を登録する。`--config <path>` で別の設定ファイルを指定できる。
 
@@ -35,11 +39,13 @@ Windows Shell 経由で `.exe`、`.lnk`、フォルダ、関連付け済みフ�
 
 アイコンを取得できない項目には、コード描画の安定した fallback を表示する。Windows のローカル日本語フォントを利用し、フォントがない場合は同梱フォントで継続する。日本語フォントをリポジトリに配布しない。
 
+Shell アイコンは最大256×256pxを要求し、Dock のサイズへ縮小表示します。既定ブラウザーも同じ方式です。高解像度取得に失敗した場合は従来の Shell アイコンへ戻ります。元アプリが低解像度の画像しか持たない場合、細部の鮮明さは保証できません。
+
 通知領域のメニューから Show Dock / Settings / Quit を操作できる。非表示時はカーソルがあるモニターの選択辺で復帰し、表示中はそのモニターに固定する。対象モニターへ移動後に DPI を取得して配置する。
 
 表示中の Dock に複数ファイル／フォルダをドロップすると、重複を除いて登録・保存する。未適用の設定編集がある場合は保護のため拒否するので、Apply または Discard edits を選ぶ。保存が失敗した場合は Dock 項目を変更しない。
 
-Windows Shell アイコンを background worker で抽出しキャッシュする。設定の Icon image に PNG/ICO/JPEG のパスを指定でき、失敗時は Shell / fallback に戻る。Reload icons で画像変更を再読込する。URL は globe、欠損パス等は安定した fallback を使う。
+Windows Shell アイコンを background worker で抽出しキャッシュする。設定のアイコン画像に PNG/ICO/JPEG のパスを指定でき、失敗時は Shell / fallback に戻る。URL の自動アイコンは http／https に関連付けられた既定ブラウザーのアイコンを使用し、取得できなければ地球アイコンへ戻る。明示した画像・組み込みアイコンは引き続き優先する。ブラウザー変更や画像変更後は「詳細 → アイコンを再読み込み」、または再起動で更新する。欠損パス等は安定した fallback を使う。
 
 ```powershell
 cargo fmt --check
@@ -49,8 +55,12 @@ $env:RUST_LOG = 'maxim_dock_rs=debug'
 cargo run --locked
 # 約20秒で検証し正常終了。実設定には触れない
 cargo run --locked -- --smoke-test
+# 任意: Dock と設定3ページの描画確認用 PNG を保存
+$env:MAXIMDOCK_SMOKE_CAPTURE_DIR = 'target/ui-review'
+cargo run --locked --target-dir target/refactor-smoke -- --smoke-test
+Remove-Item Env:MAXIMDOCK_SMOKE_CAPTURE_DIR
 ```
 
 smoke は一時設定だけを使う。Top で起動し、四辺への Apply/save/reload、可視 Dock の即再配置、実 HWND の30回 hide/show、hidden の GetCursorPos、描画再開、hidden root と設定 child の共存、設定閉鎖後の継続を検査する。ホットゾーン進入と UI コマンドは疑似入力。クリック操作・ネイティブダイアログ・実カーソルの端進入・150% DPI の手動受け入れは未検証。
 
-Phase 3 の未検証: 実トレイクリック、Explorer DnD、混在 DPI の複数モニター、負座標モニター、スリープ/ロック/フルスクリーンとの相互作用。smoke は実 tray 作成と疑似メニュー／ドロップ command も検査するが実操作の代用ではない。未実装: Dock 内 DnD 並び替え、モニター切断への完全自動追従、高解像度/モノクロ/MAX_PATH超の Shell icon（fallback使用）。ログイン起動は設計調査のみで OS 登録は変更しない。高度な hover 拡大・スタートアップ登録は Phase 4。
+Phase 3 の未検証: 実トレイクリック、Explorer DnD、混在 DPI の複数モニター、負座標モニター、スリープ/ロック/フルスクリーンとの相互作用。smoke は実 tray 作成と疑似メニュー／ドロップ command も検査するが実操作の代用ではない。未実装: Dock 内 DnD 並び替え、モニター切断への完全自動追従、モノクロ/MAX_PATH超の Shell icon の特殊対応（fallback使用）。ログイン起動は設計調査のみで OS 登録は変更しない。高度な hover 拡大・スタートアップ登録は Phase 4。

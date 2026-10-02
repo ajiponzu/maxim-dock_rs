@@ -1,5 +1,57 @@
 # 実装・検証記録
 
+## 高解像度 Shell アイコン（2026-10-03）
+
+縮小表示にはlinear mipmapを有効化。利用版egui_glow 0.36.2のtexture uploadがgenerate_mipmapを呼ぶことをsourceで確認し、256pxから小さいDockサイズへ描画する際のaliasingを抑える。サイズ／DPIに応じた毎回のShell再抽出は追加しない。
+
+フィルター調整後の最終native smoke：30 hide/show、poll91回、652 frames、3種のPASSと正常終了。最終Dock PNGで縮小表示を目視確認。
+
+native smokeも成功：実hide/show30回、hidden poll91回、643 frames、3種のPASSと正常終了。更新後のDock描画PNGを目視確認した。
+
+ユーザー要望により既存の高解像度アイコン残件へ対応。SHCreateItemFromParsingName → IShellItemImageFactory::GetImageで256×256pxを要求し、SIIGBF_ICONONLYでサムネイルを禁止する。SIIGBF_SCALEUPは指定しない。取得・変換失敗（alpha無しを含む）は従来のSHGetFileInfoW + HICON/maskへfallback。ブラウザーexeも同じ取得関数を使用し、ユーザー画像・Builtinの優先順位は変更しない。COM/interface/bitmap/DCはworker内でRAII解放。描画は既存texture cache、DPI変更で再抽出不要。設定スキーマ・依存追加なし。
+
+Image List案と比較し、既存のbitmap変換を再利用でき、Common Controlsの追加featureやv6 manifest管理を不要にするShell Image Factoryを選択。[Microsoft GetImage](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemimagefactory-getimage)のICONONLY／リソース解放／worker実行要件を確認。GetImageはDeleteObjectで解放するHBITMAPを返す。BGRA→RGBAとpremultiplied alphaの変換を共有し、半透明エッジのユニットテストを追加。
+
+fmt／clippy --all-targets -D warnings／34 tests成功。実機でexe・フォルダー・関連付け日本語文書は256×256px（従来32×32px）、http／httpsの既定ブラウザーも256×256pxを取得。高解像度優先／失敗時のlegacy呼出／双方失敗、画像優先とURLfallback、100回の実Shell抽出でGDI／USER各+2以下を検証。native resource検査同士はmutexで直列化し、他のnative画像検査の一時ハンドル数が混入しないようにした。
+
+制約: 元リソースが低解像度なら鮮明さは保証できない。すべてのexe／lnk／関連付け製品や混在DPIでの見え方は手動未検証。高解像度の「image list」方式と文書thumbnailは実装しない（代替Factory方式で目的を達成し、Dockはアイコン表示に限定するため）。MAX_PATH超とlegacyモノクロ特殊変換は引き続きfallback。Phase 2/3の他の手動残件、Phase 4の未実装機能は維持。
+
+## URL の既定ブラウザーアイコン（2026-10-03）
+
+更新後のnative smokeも成功：実hide/show30回、hidden poll91回、652 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASSと正常終了。
+
+ユーザー要望により、URL の自動アイコンを地球から既定ブラウザーへ変更。優先順位はユーザー画像 → 明示Builtin → http／httpsの既定ブラウザー → 地球fallback。欠損カスタム画像もブラウザーへfallbackする。URLごとのfavicon取得やWebアクセスは行わない。
+
+Windows層のAssocQueryStringW(ASSOCF_IS_PROTOCOL | ASSOCF_NOTRUNCATE, ASSOCSTR_EXECUTABLE)でプロトコル別の既定実行ファイルを取得し、既存SHGetFileInfoW／GDI変換を再利用。サイズ照会のS_FALSEは成功として扱い、UTF-16バッファを2〜32768文字に制限。COMは同一worker threadでRAII解放する。描画は従来どおりtexture cacheのみ。新しい依存・設定スキーマ・レジストリ書込みなし。API仕様は [Microsoft AssocQueryStringW](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-assocquerystringw) と [ASSOCSTR](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/ne-shlwapi-assocstr) を確認した。
+
+fmt／clippy --all-targets -D warnings／31 tests成功。実Windows関連付けからhttp／httpsのブラウザーアイコンを取得し、そのexeのShell画像と寸法・RGBAが一致することを検証。ユーザー画像優先、欠損画像からブラウザー、関連付け失敗時の地球fallback、明示Builtinの維持もテスト。環境の既定ブラウザーを変更せず検証した。
+
+制約: 既定ブラウザー変更は「アイコンを再読み込み」または再起動で反映（自動監視は追加しない）。実行ファイルとして解決できない関連付け、MAX_PATH超、既存Shell変換の非対応アイコンは地球に戻る。ブラウザー変更の実操作・異なるブラウザー製品の網羅は未検証。
+
+## カラーテーマ（2026-10-03）
+
+カラーコード欄のクリックでもピッカーを開くよう改善。コードをボタン表示とし、ポップアップ内にピッカーと直接入力欄を併設。変更はdraftだけに反映する。疑似マウス押下／解放のheadlessテストでポップアップが開き、開くだけでは色が変更されないことを確認。fmt／clippy --all-targets -D warnings／29 tests成功。今回の変更後にnative smokeは再実行しておらず、実マウスのピッカー操作は未検証。
+
+選択文字のコントラスト調整後にも native smoke を再実行し、30 hide/show、poll91回、649 frames、3種のPASSと正常終了を確認。最終PNGでも選択文字とカスタム編集欄を目視確認した。
+
+ユーザー要望により Phase 4 のテーマ統合だけを追加。標準／Ocean／Forest／Rose を明暗モードごとに解決し、カスタムは9色の固定パレットを使用する。色ピッカー、#RRGGBB入力、プリセットからコピー、draft のプレビューを設定へ追加。Dock と設定は共通の style を参照し、適用は既存の検証・保存成功後のみ。起動時にも保存済みのパレットを反映する。CSS は brief の技術制約に従い採用せず、TOML の appearance.palette / appearance.colors を追加。依存追加なし。version 1 の旧 appearance は serde default で標準へ補完し、項目／UUID／順序を保持。色構文は core で検証する。
+
+検証: 28 tests、fmt、clippy --all-targets -D warnings 成功。旧設定の互換読込、全パレットのTOML往復、不正色・未知名拒否、両テーマstyleへの反映・カスタム色から標準へ復帰、全パレット／両明暗／各ページの最小サイズheadless描画を検査。native smoke で5パレットを切替えてApply/save/reload、実hide/show30回、hidden poll91回、655 frames、3種のPASSと正常終了。target/theme-review のカスタム設定rendererを目視確認。実クリック・ピッカー操作・混在DPIは未検証。
+
+制約: カスタムは明暗共通の固定色、コントラスト自動補正なし。CSS・ファイル監視・外部テーマファイルのインポートは未実装。安定した既存TOML保存経路へ限定し、追加のパーサー／監視threadを持ち込まないため。直接編集は終了後に行い再起動する。詳細は color-themes.md。その他の Phase 2/3 の未検証項目と Phase 4 未実装機能は維持する。
+
+## UI 更新（2026-10-03）
+
+ユーザー要望に合わせ、Dock と設定画面の読みやすさ・余白・配色を更新。本文とボタン17 pt、Dock ラベル16 pt、補足15 pt。DPI の換算境界と zoom=1 は維持。Dock は角丸パネル、ホバー／フォーカス強調、大きめのアイコンと歯車設定ボタン。ラベルは固定文字数の切捨てから実幅の省略表示へ変更し、四辺のサイズ計算も共有したタイル寸法から行う。
+
+設定は「Dock／アイテム／詳細」のナビゲーションとカード構成、常時見える保存／破棄フッター、未保存状態表示を追加。初期880×760 pt、最小680×520 pt、本文は縦スクロール。入力欄は最低36 pt高、狭いカードではスライダー幅を縮める。共通配色・文字サイズは ui/theme.rs、設定各ページは ui/settings/ に分離。既存開発 skill に従い描画は command 発行だけとし、保存・Shell・ダイアログの境界は変更しない。依存追加・設定スキーマ変更なし。エッジの再表示判定はユーザー指示により今回の変更対象外。
+
+検証: fmt / clippy -D warnings / 26 tests 成功。両テーマの文字サイズ、四辺・24/56/128 ptアイコンの寸法、最小ウィンドウで全ページの headless 描画（設定や command の不意の変更なし）を追加検証。最終 native smoke は実 hide/show30回、hidden poll92回、645 frames、NATIVE / PHASE2 / PHASE3_SMOKE_PASS と正常終了。
+
+任意の MAXIMDOCK_SMOKE_CAPTURE_DIR を指定すると一時設定の smoke で Dock と設定3ページの PNG を生成する。PNG 書込みは logic 側だけで行い、通常起動では無効。Glow 0.36.2 の immediate child 描画経路は Screenshot action の返却を処理しないため、child 共存の smoke 検査後、同一設定 renderer を確認専用の root に描画して取得する。これは child HWND そのもののスクリーンショットではない。target/ui-review の実描画で日本語・カード・フッター・入力欄を目視確認。実クリック／スクロール／混在 DPI は未検証のまま。
+
+Phase 2/3 の実装状況・残機能は下記の履歴と acceptance を維持。今回 Phase 4 の拡大アニメーションや OS スタートアップ登録は追加しない。UI 操作性の更新に限定し、非表示時の軽量ポーリングと既存の機能境界を維持するため。
+
 ## UI 責務分離（2026-10-03）
 
 肥大化した ui/mod.rs から責務を分離した。公開入口 `ui::DockApp`、CLI、設定スキーマ、Top 既定値、hide/reveal と保存の挙動は維持。依存追加なし。

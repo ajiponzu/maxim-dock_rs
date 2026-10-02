@@ -1,5 +1,6 @@
 //! Native integration driver for --smoke-test; never uses the user's config.
 use super::DockApp;
+use super::smoke_capture::Capture;
 use crate::{
     core::*,
     platform_windows::{ConfigStore, TrayAction},
@@ -9,13 +10,16 @@ use eframe::egui;
 use std::time::{Duration, Instant};
 
 pub(super) struct Smoke {
-    started: Instant,
+    pub(super) started: Instant,
     reveals: usize,
     next: Instant,
     hidden_polls: usize,
-    shown_frames: usize,
+    pub(super) shown_frames: usize,
     settings_frames: usize,
     finish_stage: u8,
+    pub(super) capture: Option<Capture>,
+    pub(super) preview_settings: bool,
+    pub(super) preview_frames: usize,
 }
 
 impl Smoke {
@@ -28,6 +32,10 @@ impl Smoke {
             shown_frames: 0,
             settings_frames: 0,
             finish_stage: 0,
+            capture: std::env::var_os("MAXIMDOCK_SMOKE_CAPTURE_DIR")
+                .map(|path| Capture::new(path.into())),
+            preview_settings: false,
+            preview_frames: 0,
         }
     }
     pub(super) fn record_hidden_poll(&mut self) {
@@ -154,6 +162,24 @@ impl DockApp {
                             self.window.is_visible(),
                             "tray Show must reveal hidden root"
                         );
+                        if smoke
+                            .capture
+                            .as_ref()
+                            .is_some_and(|capture| !capture.complete())
+                        {
+                            // Glow 0.36 does not deliver screenshots for immediate children.
+                            // Preview the same settings renderer on the root only in capture smoke.
+                            if !smoke.preview_settings {
+                                self.window
+                                    .position(DockEdge::Top, self.monitor, (880.0, 760.0), false)
+                                    .unwrap();
+                                smoke.preview_settings = true;
+                            }
+                            smoke.next = now + Duration::from_millis(75);
+                            self.smoke = Some(smoke);
+                            ctx.request_repaint();
+                            return;
+                        }
                         tracing::info!(
                             polls = smoke.hidden_polls,
                             frames = smoke.shown_frames,
@@ -186,6 +212,9 @@ impl DockApp {
                 config.dock.icon_size = 40.0 + (smoke.reveals % 4) as f32 * 8.0;
                 config.dock.auto_hide = smoke.reveals.is_multiple_of(2);
                 config.dock.always_on_top = smoke.reveals.is_multiple_of(2);
+                config.appearance.palette =
+                    ["default", "ocean", "forest", "rose", "custom"][smoke.reveals % 5].into();
+                config.appearance.colors.accent = "#AABBCC".into();
                 if smoke.reveals == 0 {
                     config.items[0].label = "Renamed Explorer".into();
                     config.move_item(0, 2);
