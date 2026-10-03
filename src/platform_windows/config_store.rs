@@ -189,6 +189,15 @@ mod tests {
             arguments: vec!["空白 を含む引数".into()],
             ..Default::default()
         });
+        workspace.entries.push(crate::core::WorkspaceEntry {
+            terminal: Some(crate::core::TerminalSettings {
+                shell: crate::core::TerminalShell::Wsl,
+                script: "printf '%s\\n' '日本語; & quotes'\ncodex".into(),
+                ..Default::default()
+            }),
+            working_directory: "/home/user/project space".into(),
+            ..Default::default()
+        });
         c.workspaces.push(workspace);
         store.save(&c).unwrap();
         let (_, restored, error) = ConfigStore::load(path, defaults);

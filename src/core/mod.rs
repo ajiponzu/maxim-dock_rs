@@ -1,8 +1,10 @@
 mod config;
 mod geometry;
+mod terminal;
 mod visibility;
 mod workspace;
 mod wsl;
+pub use terminal::*;
 pub use workspace::*;
 pub use wsl::*;
 

@@ -1,6 +1,7 @@
 //! Recipe editor; mutates draft only, emits commands for all external operations.
 mod execution;
 mod placement;
+mod terminal;
 use super::Editor;
 use crate::{
     core::*,
@@ -95,25 +96,7 @@ pub(super) fn render(
                     });
                     field(ui, "表示名", &mut entry.label);
                     execution::render(ui, entry);
-                    ui.label("引数（1 行 = 1 引数。引用符による囲みは不要）");
-                    let mut remove_arg = None;
-                    for (i, arg) in entry.arguments.iter_mut().enumerate() {
-                        ui.horizontal(|ui| {
-                            ui.add(
-                                egui::TextEdit::singleline(arg)
-                                    .desired_width((ui.available_width() - 44.0).max(40.0)),
-                            );
-                            if ui.button("−").clicked() {
-                                remove_arg = Some(i);
-                            }
-                        });
-                    }
-                    if let Some(i) = remove_arg {
-                        entry.arguments.remove(i);
-                    }
-                    if ui.button("＋ 引数").clicked() && entry.arguments.len() < 256 {
-                        entry.arguments.push(String::new());
-                    }
+                    execution::arguments(ui, entry);
                     if entry.wsl.as_ref().is_none_or(|wsl| wsl.place_window) {
                         egui::CollapsingHeader::new("ウィンドウの識別（起動ブローカー等）")
                             .id_salt((entry.id, "matching"))
@@ -121,7 +104,7 @@ pub(super) fn render(
                             .show(ui, |ui| {
                                 field(
                                     ui,
-                                    if entry.wsl.is_some() { "配置対象の Windows .exe（必須・例: Code.exe の絶対パス）" } else { "配置対象 .exe（空欄なら起動 .exe）" },
+                                    if entry.terminal.is_some() { "配置対象 .exe（通常は空欄・Windows Terminal を自動識別）" } else if entry.wsl.is_some() { "配置対象の Windows .exe（必須・例: Code.exe の絶対パス）" } else { "配置対象 .exe（空欄なら起動 .exe）" },
                                     &mut entry.window_executable,
                                 );
                                 field(

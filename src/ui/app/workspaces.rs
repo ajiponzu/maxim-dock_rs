@@ -77,6 +77,16 @@ mod tests {
             .arguments
             .push("--new-window".into());
         assert!(!saved_workspace_matches(&draft, &saved));
+        saved.entries[0].wsl = None;
+        saved.entries[0].terminal = Some(TerminalSettings::default());
+        draft.workspaces[0] = saved.clone();
+        assert!(saved_workspace_matches(&draft, &saved));
+        draft.workspaces[0].entries[0]
+            .terminal
+            .as_mut()
+            .unwrap()
+            .script = "python".into();
+        assert!(!saved_workspace_matches(&draft, &saved));
         draft.workspaces.clear();
         assert!(!saved_workspace_matches(&draft, &saved));
     }

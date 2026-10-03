@@ -37,7 +37,7 @@ WSLからの`code`起動にはWindows版VS CodeとWSL拡張等の利用環境が
 
 「起動した Windows ウィンドウを配置する」を選ぶと、Windows モードと同じモニター図・配置プリセットを利用できます。「ウィンドウの識別」に実際の Windows 側の所有プロセスの .exe 絶対パスが必須です。Linux の `code` を Windows 側で検査するのではなく、指定した `Code.exe` の新規ウィンドウだけを対象にします。WSL コマンド起動前に既存 HWND/PID を記録するため、既存 VS Code に転送された場合は移動しません。対象が複数ならタイトル条件で絞り込みます。配置待ちはコマンドの終了待ちとは別に最大15秒です。
 
-Terminal 内で対話的に WSL を使う場合は、Windows モードで `wt.exe` を起動し、引数を `--window`、`new`、`new-tab`、`wsl.exe`、`--distribution`、ディストリビューション名に分けて指定します。配置対象は実際の `WindowsTerminal.exe` の絶対パスです。起動エイリアスの `wt.exe` とウィンドウ所有者は異なります。WSL 経由で Terminal を起動する場合も、同じ所有者を指定して Windows ウィンドウ配置を選べます。新規ウィンドウ指定は[Microsoft Terminal の引数資料](https://learn.microsoft.com/en-us/windows/terminal/command-line-arguments)を参照してください。
+Terminal 内で対話的に WSL を使う場合は、次の専用「Windows Terminal モード」を使ってください。従来の Windows モードから `wt.exe` を引数付きで直接起動する方法も残していますが、その場合は所有者 `WindowsTerminal.exe` の絶対パスを手入力する必要があります。
 
 既定では「コマンドの終了・成功を待って次へ進む」がオン（60秒、1〜600秒に設定可能）。たとえば最初のエントリーに `/bin/true` を設定して WSL を事前起動し、成功後に次の Windows アプリを起動できます。準備スクリプトを実行するなら Linux コマンドに `/bin/bash`、引数にスクリプトの Linux パスを指定します。失敗・タイムアウト・中止では後続エントリーを起動しません。
 
@@ -46,6 +46,35 @@ Terminal 内で対話的に WSL を使う場合は、Windows モードで `wt.ex
 WSL ブリッジ自体はコンソールを開かず、標準入力は無効です。`ls` の正常出力は画面に出しません。終了待ちを選択した失敗時には標準エラーと標準出力の末尾を各最大8KiB表示します（UTF-8／WSL自身のUTF-16LE診断に対応）。診断はメモリー内だけに保持し、引数や出力を自動でログ・設定へ保存しません。待機なしは起動要求のみなので、Linux側の失敗や準備完了は判定できません。Linux WSLg ウィンドウの識別・配置、対話入力・正常出力の閲覧、WSL のインストール／自動設定は対象外です。中止／タイムアウトも起動済み Linux コマンドや WSL を強制終了しません。必要なら利用者側で停止してください。
 
 実行結果には使用した方式（WSL標準シェル／bashログインシェル／直接実行）を表示します。変更後は適用して保存が必要です。Dockカードでも未保存の該当レシピがある場合は旧設定で起動せず通知します。シェル文法が必要な場合だけ、明示的に `bash` 等と `-lc` の引数を設定してください。[Microsoft WSL コマンド資料](https://learn.microsoft.com/en-us/windows/wsl/basic-commands)、[WSL --exec／--cd の仕様記録](https://github.com/MicrosoftDocs/WSL/blob/main/WSL/release-notes.md)を参照。
+
+## Windows Terminal モード
+
+設定 → 作業環境 →「＋ アプリを追加」→「Windows Terminal モード（端末でコマンドを実行）」をオンにします。Windows Terminal がインストールされ、現在ユーザーの `wt.exe` 実行エイリアスが有効である必要があります。見つからない場合は「Terminal の詳細」で実在する `wt.exe` の絶対パスを指定します。アプリ自身は Terminal／WSL／Python 等をインストールしません。
+
+1. シェルを Windows PowerShell／コマンドプロンプト／WSL (bash) から選択。
+2. 作業ディレクトリを指定（任意）。Windows は `C:\Projects\example` 等の絶対パス、WSL は `/home/user/project` 等の Linux 絶対パス／`~`。空欄はシェルの既定。
+3. 起動コマンドを入力。PowerShell で Python の対話モードを開くなら `python`。空欄ならシェルだけを開きます。
+4. モニター・配置を選び「適用して保存」。作業環境カードから起動します。「ウィンドウの識別」は通常空欄で構いません。
+
+WSL → 指定フォルダー → codex の例:
+
+- シェル: `WSL (bash)`
+- ディストリビューション: `Ubuntu-24.04`（空欄なら既定）
+- Linux ユーザー: 必要なら指定（空欄なら既定）
+- Linux 作業ディレクトリ: `/home/user/project`
+- 起動コマンド: `codex`
+
+WSL への切り替えとフォルダー移動は自動なので、コマンド欄に `wsl` や `cd` は不要です。任意の複数行スクリプトも使用でき、例えば `cd /home/user/project` の次の行に `codex` と書けます。bash の対話ログイン環境を読み込むため、起動ファイルで追加された PATH を使用できます。ただし対象コマンドがそのユーザー環境にインストールされている必要があります。
+
+「コマンド終了後も端末を開いたままにする」は既定オン。Python／codex 等の対話アプリは端末の入出力を利用でき、終了後にシェルを使えます。オフならスクリプト終了後にシェルも終了します（Terminal 自体の終了表示／タブ閉鎖は利用者の Terminal 設定にも依存します）。cmd の複数行は ` & ` で連結したコマンド列として実行するため、複雑なバッチ構文は別 `.cmd` ファイルを起動してください。
+
+内部コマンドの成功終了・サービスの準備完了は監視しません。結果の「起動・配置完了」は新規 Terminal ウィンドウの配置成功を表します。コマンドのエラーや出力は Terminal 内で確認します。配置後は次のエントリーへ進みます。準備処理の成功終了を待ってから次へ進めたい場合は、従来のバックグラウンド WSL モードを使用してください。起動／配置の失敗・中止では後続を起動せず、起動済み端末や内部アプリは強制終了しません。
+
+スクリプトは明示的にシェルのプログラムとして実行します（通常モードの安全な引数配列とは異なります）。信頼できるコマンドだけを登録し、平文の設定にパスワード／トークンを保存しないでください。起動スクリプトは最大8KiB、全起動コマンドラインにも長さ制限があります。Terminal の区切り文字との競合を避けるため cwd に `;`、WSL の名前・パスには `"`／`\` を使用できません。コマンド本文の `;`／引用符／日本語／改行はエンコードして渡します。
+
+常に `--window new` で新規ウィンドウを作り、エントリー UUID の固定タイトルと `WindowsTerminal.exe` を自動識別します。アプリ側のタイトル変更は抑制するためタブには識別用タイトルが表示されます。起動前の全 HWND/PID と一意候補チェックも維持し、既存 Terminal のタブ追加／移動はしません。WSL モードから Terminal モードへ切り替えるとディストリビューション／ユーザーを引き継ぎ、旧 Code.exe 等の配置識別条件は draft 内でクリアします。旧 exe／引数は保持しますが Terminal モードでは実行しません。
+
+WSL は `/bin/bash` と `base64` があるディストリビューションが対象。起動レシピを保存する機能であり、動作中の端末内容・入力履歴・対話アプリの内部状態をキャプチャする機能ではありません。[Microsoft Terminal の引数資料](https://learn.microsoft.com/en-us/windows/terminal/command-line-arguments)を参照。
 
 ## Windows モードの実行・安全性
 
@@ -61,4 +90,4 @@ WSL ブリッジ自体はコンソールを開かず、標準入力は無効で�
 
 ## 責任の境界
 
-`core/workspace.rs` はモデル・検証・物理ピクセルへの配置計算・候補判定、`core/wsl.rs` はWSL実行オプションとargv構築。`platform_windows/displays.rs` はモニター取得、`workspace_launch.rs` はWindows直接起動、`workspace_wsl.rs` はWSL起動・終了待ち、`workspace_wsl_output.rs` は上限付きの非ブロッキング診断取得、`workspace_windows.rs` は native window 操作、`workspace_runner.rs` は worker と中止／結果通知、`workspace_runner/placement.rs` は両起動方式の共通配置待ち。`ui/settings/workspaces` は draft の編集、`ui/dock_view` はカードと小型ボタン、`ui/app/workspaces.rs` は接続だけを担当します。
+`core/workspace.rs` はモデル・検証・物理ピクセルへの配置計算・候補判定、`core/wsl.rs` はWSL実行オプションとargv構築、`core/terminal.rs` は Terminal 設定・検証・エンコード済み引数構築。`platform_windows/displays.rs` はモニター取得、`workspace_launch.rs` はWindows直接起動、`workspace_wsl.rs` はWSL起動・終了待ち、`workspace_wsl_output.rs` は上限付きの非ブロッキング診断取得、`workspace_terminal.rs` は Terminal 起動・自動識別、`workspace_windows.rs` は native window 操作、`workspace_runner.rs` は worker と中止／結果通知、`workspace_runner/placement.rs` は各起動方式の共通配置待ち。`ui/settings/workspaces/terminal.rs` は Terminal draft 編集、`ui/dock_view` はカードと小型ボタン、`ui/app/workspaces.rs` は接続だけを担当します。

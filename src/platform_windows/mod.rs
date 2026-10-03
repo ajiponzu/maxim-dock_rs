@@ -16,6 +16,7 @@ mod displays;
 pub use displays::display_catalog;
 mod workspace_launch;
 mod workspace_runner;
+mod workspace_terminal;
 mod workspace_windows;
 mod workspace_wsl;
 mod workspace_wsl_output;

@@ -1,5 +1,17 @@
 # 受け入れ状況
 
+## Windows Terminal モード（2026-10-03）
+
+- [x] PowerShell／cmd／WSL bash、複数行起動コマンド、cwd、終了後保持、任意launcher、通常のモニター／配置を編集可能。描画中に起動／保存しない。
+- [x] 旧レシピ互換と UUID・順序・Top、TOML保存／再読込、WSL排他、制御文字／上限／Terminal引数競合の拒否、未保存本文変更の旧レシピ起動抑止。
+- [x] 実 Windows Terminal で3シェルの無害な本文を実行。日本語・空白cwd、出力marker、引用符／&／semicolon（cmdはASCII）、stdin/TTY（PowerShell/bash）、端末保持、サブモニター右半分の実配置を確認。
+- [x] 既存 Terminal の矩形不変。テストは UUID 付き新規ウィンドウのみ回収。実ユーザーのconfig／Terminal設定は変更しない。
+- [x] 通常66 tests成功（実機テスト6件は通常ignored）、Terminal実機1件明示成功、fmt／clippy --locked --all-targets -D warnings成功。
+- [x] native smoke: 30 hide/show、92 hidden polls、704 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASS。保存競合 ERROR は意図した検証。release exe／installer生成成功。
+- [ ] 実 python／codex 対話起動、実マウスによる保存・再起動、他WSLディストリビューション、混在DPI、installer実更新。
+
+内部コマンドの成功終了／readiness監視、既存タブの再利用、端末内容／対話アプリの内部状態復元、任意Terminalプロファイル選択、自動導入は未実装。今回のスクリプト付き新規端末レシピとは別契約が必要なため。Phase2保存保護とPhase3固定Dock／トレイ／DnDは維持、従来の手動未検証項目は自動テストで合格に変更しない。
+
 ## WSL 標準シェル・実 VS Code 起動（2026-10-03）
 
 - [x] 既定と旧設定のdirect_exec未指定は標準シェル。各単語のPOSIX引用・直接実行opt-in・TOML互換をcore検証。

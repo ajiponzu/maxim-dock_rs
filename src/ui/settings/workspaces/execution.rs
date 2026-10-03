@@ -2,6 +2,40 @@
 use crate::{core::*, ui::theme};
 use eframe::egui;
 pub(super) fn render(ui: &mut egui::Ui, entry: &mut WorkspaceEntry) {
+    let mut terminal_enabled = entry.terminal.is_some();
+    if ui
+        .checkbox(
+            &mut terminal_enabled,
+            "Windows Terminal モード（端末でコマンドを実行）",
+        )
+        .changed()
+    {
+        if terminal_enabled {
+            let wsl = entry.wsl.take();
+            entry.terminal = Some(TerminalSettings {
+                shell: if wsl.is_some() {
+                    TerminalShell::Wsl
+                } else {
+                    TerminalShell::PowerShell
+                },
+                distribution: wsl
+                    .as_ref()
+                    .map(|w| w.distribution.clone())
+                    .unwrap_or_default(),
+                user: wsl.map(|w| w.user).unwrap_or_default(),
+                ..Default::default()
+            });
+            // A previous Code.exe/title filter must not prevent Terminal detection.
+            entry.window_executable.clear();
+            entry.title_contains.clear();
+        } else {
+            entry.terminal = None;
+        }
+    }
+    if entry.terminal.is_some() {
+        super::terminal::render(ui, entry);
+        return;
+    }
     let mut enabled = entry.wsl.is_some();
     if ui
         .checkbox(&mut enabled, "WSL モード（Linux 内で実行）")
@@ -74,6 +108,30 @@ pub(super) fn render(ui: &mut egui::Ui, entry: &mut WorkspaceEntry) {
     } else {
         super::field(ui, "起動する .exe の絶対パス", &mut entry.executable);
         super::field(ui, "作業ディレクトリ（任意）", &mut entry.working_directory);
+    }
+}
+pub(super) fn arguments(ui: &mut egui::Ui, entry: &mut WorkspaceEntry) {
+    if entry.terminal.is_some() {
+        return;
+    }
+    ui.label("引数（1 行 = 1 引数。引用符による囲みは不要）");
+    let mut remove = None;
+    for (i, arg) in entry.arguments.iter_mut().enumerate() {
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(arg)
+                    .desired_width((ui.available_width() - 44.0).max(40.0)),
+            );
+            if ui.button("−").clicked() {
+                remove = Some(i);
+            }
+        });
+    }
+    if let Some(i) = remove {
+        entry.arguments.remove(i);
+    }
+    if ui.button("＋ 引数").clicked() && entry.arguments.len() < 256 {
+        entry.arguments.push(String::new());
     }
 }
 #[cfg(test)]

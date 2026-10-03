@@ -10,6 +10,7 @@
 - Phase 3: モニター再選択は hidden 時だけ。移動前 HWND の DPI を使わない。DnD は未保存 draft と保存競合を保護する。Shell/GDI 抽出は worker と RAII、描画は cache のみ。tray handler の解除可否は利用版 source を確認し、static に App の強参照を残さない。
 - ui/mod.rs は公開入口だけに保つ。App 接続・command 実行・smoke を分離し、native dialog の worker/受信状態は platform に置く。ファイル分割のために App field や atomic を広く公開しない。
 - 作業環境は core のレシピ／配置数学、platform のモニター catalog・起動・window 操作・worker、UI の draft 編集／command を分離する。起動前の全 top-level HWND/PID を snapshot し、既存・曖昧な window を移動しない。worker の中止は将来の起動／待機だけを止め、利用者のアプリを終了しない。モニターの一時 handle や列挙番号を保存しない。
+- Terminalモードは信頼済みスクリプトを明示する。本文をwtの区切り文字パーサーへ渡さず、エンコードしてTerminal内のPTYで実行する。常に新規ウィンドウ＋UUIDタイトルで識別し、内部コマンドの成功と配置成功を混同しない。nativeテストは生成したUUIDの端末だけを閉じ、既存端末を変更しない。
 - UI 配色・文字サイズは ui/theme.rs に集約し、両テーマと最小設定サイズを検証する。DPI のため zoom を増やさず、Dock 寸法は描画と同じタイル寸法から計算する。任意の描画確認 PNG と実操作の受け入れは区別する。
 - Dock の寸法はアプリ一覧を基準にする。作業環境の件数や表示モード切替ではリサイズ／再配置せず、多い項目は同じ領域内でスクロールする。
 - 作業環境カードの起動時は保存済みレシピと該当draftを比較し、変更・削除が未保存なら旧レシピを起動しない。WSLの既定は標準Linuxシェル経由。コマンド／各引数をcoreでPOSIX引用し、WSLへ渡すその引用済み行だけraw_argで渡す（Windowsの自動引用を重ねない）。直接--execは明示選択とする。

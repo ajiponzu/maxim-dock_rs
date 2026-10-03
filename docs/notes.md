@@ -1,5 +1,21 @@
 # 実装・検証記録
 
+## Windows Terminal 作業環境モード（2026-10-03）
+
+optional TerminalSettings を追加し、旧レシピは従来モードを維持。Terminal とバックグラウンド WSL は排他。Windows PowerShell／cmd／WSL bash、起動スクリプト、作業ディレクトリ、終了後のシェル保持、任意 wt.exe 指定を保存する。常に新規 Terminal を作成し、UUID の固定タイトル＋WindowsTerminal.exe で自動識別。既存全 HWND/PID snapshot と共通の一意候補・配置待ちを再利用し、既存端末にはタブ追加／移動しない。利用者の実 config や Terminal の設定は変更しない。
+
+責任分離: core/terminal.rs は設定・制限・引数エンコード、platform_windows/workspace_terminal.rs は現在ユーザーの wt.exe 解決・起動・識別、ui/settings/workspaces/terminal.rs は draft 編集。runner は各モードの接続のみ、ui/mod.rs は変更なし。新規依存なし。小さな base64 encoder は標準ベクトルと実機配送で検証し、一時スクリプトファイルは作らない。
+
+起動本文は明示的な信頼済み shell script。PowerShell は UTF-16LE EncodedCommand、cmd はその内部から ComSpec /d /k または /c（改行は & で連結）。WSL は対話ログイン bash で UTF-8 base64 の本文を process substitution から source し、端末 stdin を残す。初期案の bootstrap 内の二重引用符は直接 WSL では成功したが wt 経由で本文が失われた。Terminal の child commandline 再構築が内側の引用符をエスケープしないことを公式 source で確認し、引用符不要の bootstrap に修正して再テスト成功。名前／Linux cwd の二重引用符・backslash、cwd のsemicolonは保存前に拒否し、本文内の引用符／semicolonは許可。参考: [Terminal引数](https://learn.microsoft.com/en-us/windows/terminal/command-line-arguments)、[Terminal child commandline source](https://github.com/microsoft/terminal/blob/main/src/cascadia/TerminalApp/AppCommandlineArgs.cpp)、[EncodedCommand仕様](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1)。
+
+実機の PowerShell／cmd／Ubuntu-24.04 bash で、日本語・空白の cwd、引用符・&・semicolonを含む本文（cmdはASCII marker）、出力ファイル、指定サブモニター右半分への配置、起動後の端末維持を確認。PowerShell stdin 非リダイレクトと bash stdin/stdout の TTY も確認。既存 Terminal の矩形不変、テスト終了時は今回の UUID 付き新規ウィンドウだけを閉じる。通常66 tests（6 ignored）、fmt／all-target clippy成功。TOML互換・保存再読込・未保存本文の旧レシピ起動拒否・UI無操作描画・不正launcher/cwdの起動前拒否も検証。
+
+内部コマンドの終了コード／readinessは監視しないため、配置成功を本文の成功と表示しない。コマンドの出力／エラー／対話は Terminal に委ねる。起動・配置失敗時は後続停止、中止は端末／内部アプリをkillしない。Phase2の保存保護、Phase3の配置・固定Dock・DnDを維持。未実装: 稼働中Terminalの内容・対話セッション復元、任意プロファイル／PowerShell7選択、Terminal／WSL等の自動導入、内部サービスreadiness。端末／個別アプリとの契約が別途必要で今回の起動レシピの範囲外。実python／codex起動、実マウス保存操作、他ディストリビューション、混在DPIと実installer更新は今回未検証。
+
+以下の過去記録にある Terminal 未検証／対話非対応はバックグラウンド WSL モードの当時の状況で、今回の専用 Terminal モードとは区別する。
+
+回帰native smoke: 30 hide/show、92 hidden polls、704 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASS。保存競合のERRORは意図した検証。release exe／Inno Setup installer生成成功。実稼働中の古いDockは停止／置換せず、更新版は利用者側で終了してから起動する。
+
 ## WSL 標準シェルを既定に変更・実 VS Code プロジェクト確認（2026-10-03）
 
 `wsl --user mita code --version` は成功する一方、直接--execはcodeを見つけられないことを確認。初回の既定を直接実行にした設計が普段のWSL使用と合っていなかったため、direct_exec未指定／falseはWSL標準シェル（--execなし）に変更。login_shell=trueは従来のbashログイン方式を維持し、直接実行は明示選択。旧設定のUUID・順序・Windowsモード・保存保護は維持し、利用者の設定ファイルは書換えない。

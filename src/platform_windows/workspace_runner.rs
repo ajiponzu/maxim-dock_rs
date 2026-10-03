@@ -2,7 +2,9 @@
 #[cfg(test)]
 mod native_tests;
 mod placement;
-use super::{display_catalog, workspace_launch, workspace_windows, workspace_wsl};
+use super::{
+    display_catalog, workspace_launch, workspace_terminal, workspace_windows, workspace_wsl,
+};
 use crate::core::*;
 use std::{
     sync::{
@@ -57,7 +59,7 @@ impl WorkspaceRunner {
                             Err(e) => Err(e.to_string()),
                         }
                     };
-                    let stop = entry.wsl.is_some() && result.is_err();
+                    let stop = (entry.wsl.is_some() || entry.terminal.is_some()) && result.is_err();
                     let message = result.unwrap_or_else(|e| e);
                     if tx
                         .send(Event::Result(EntryResult {
@@ -72,7 +74,7 @@ impl WorkspaceRunner {
                     if stop {
                         let _ = tx.send(Event::Result(EntryResult {
                             label: "停止".into(),
-                            message: "WSL 処理が成功しなかったため、後続エントリーを起動しません。"
+                            message: "WSL／Terminal 処理が成功しなかったため、後続エントリーを起動しません。"
                                 .into(),
                         }));
                         break;
@@ -133,8 +135,12 @@ fn restore_entry(entry: &WorkspaceEntry, cancel: &AtomicBool) -> Result<String, 
     } else {
         &entry.window_executable
     };
-    let target = workspace_launch::executable(target)?;
-    let target = workspace_launch::path_key(&target.to_string_lossy());
+    let target = if entry.terminal.is_some() && entry.window_executable.is_empty() {
+        String::new()
+    } else {
+        let target = workspace_launch::executable(target)?;
+        workspace_launch::path_key(&target.to_string_lossy())
+    };
     let displays = display_catalog().map_err(|e| e.to_string())?;
     let (display, fallback) =
         select_display(&entry.monitor_id, &displays).ok_or("モニターがありません。")?;
@@ -143,7 +149,10 @@ fn restore_entry(entry: &WorkspaceEntry, cancel: &AtomicBool) -> Result<String, 
     if cancel.load(Ordering::Acquire) {
         return Err("中止しました（起動していません）。".into());
     }
-    let launch_message = if entry.wsl.is_some() {
+    let launch_message = if entry.terminal.is_some() {
+        workspace_terminal::launch(entry)?;
+        "Terminal の新規ウィンドウを起動しました（内部コマンドの成功終了は監視しません）。".into()
+    } else if entry.wsl.is_some() {
         workspace_wsl::run(entry, cancel)?
     } else {
         workspace_launch::launch(entry)?;

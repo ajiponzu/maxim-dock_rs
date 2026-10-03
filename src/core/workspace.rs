@@ -28,6 +28,8 @@ pub struct WorkspaceEntry {
     pub executable: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wsl: Option<super::WslSettings>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terminal: Option<super::TerminalSettings>,
     #[serde(default)]
     pub arguments: Vec<String>,
     #[serde(default)]
@@ -50,6 +52,7 @@ impl Default for WorkspaceEntry {
             label: "アプリ".into(),
             executable: String::new(),
             wsl: None,
+            terminal: None,
             arguments: vec![],
             working_directory: String::new(),
             monitor_id: String::new(),
@@ -164,6 +167,14 @@ pub fn validate_workspaces(workspaces: &[Workspace]) -> Result<(), ValidationErr
             ));
         }
         for e in &w.entries {
+            if let Some(terminal) = &e.terminal {
+                terminal.validate(&e.working_directory)?;
+                if e.wsl.is_some() {
+                    return Err(ValidationError(
+                        "Terminal and background WSL modes are mutually exclusive.",
+                    ));
+                }
+            }
             if let Some(wsl) = &e.wsl {
                 wsl.validate(&e.executable, &e.working_directory)?;
                 if wsl.place_window && e.window_executable.trim().is_empty() {
@@ -175,7 +186,7 @@ pub fn validate_workspaces(workspaces: &[Workspace]) -> Result<(), ValidationErr
             if e.id.is_nil()
                 || !ids.insert(e.id)
                 || !printable(&e.label, 80)
-                || e.executable.trim().is_empty()
+                || (e.terminal.is_none() && e.executable.trim().is_empty())
                 || !text(&e.executable)
                 || !text(&e.working_directory)
                 || !text(&e.monitor_id)
@@ -189,7 +200,14 @@ pub fn validate_workspaces(workspaces: &[Workspace]) -> Result<(), ValidationErr
                     "Invalid workspace entry: check executable, arguments and normalized placement.",
                 ));
             }
-            let command_units = if let Some(wsl) = &e.wsl {
+            let command_units = if let Some(terminal) = &e.terminal {
+                terminal.launcher.encode_utf16().count()
+                    + terminal
+                        .arguments(e.id, &e.working_directory)
+                        .iter()
+                        .map(|a| 2 * a.encode_utf16().count() + 3)
+                        .sum::<usize>()
+            } else if let Some(wsl) = &e.wsl {
                 wsl.arguments(&e.executable, &e.arguments, &e.working_directory)
                     .iter()
                     .map(|a| 2 * a.encode_utf16().count() + 3)

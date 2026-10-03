@@ -18,8 +18,11 @@ pub(super) fn wait(
         let matches: Vec<_> = windows
             .iter()
             .filter(|w| {
-                w.executable == target
-                    && (entry.title_contains.is_empty() || w.title.contains(&entry.title_contains))
+                (if entry.terminal.is_some() && target.is_empty() {
+                    workspace_terminal::matches(entry, w)
+                } else {
+                    w.executable == target
+                }) && (entry.title_contains.is_empty() || w.title.contains(&entry.title_contains))
             })
             .map(|w| w.identity)
             .collect();
