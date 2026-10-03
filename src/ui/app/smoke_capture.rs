@@ -21,7 +21,7 @@ impl Capture {
         }
     }
     pub fn complete(&self) -> bool {
-        self.saved.len() == 4
+        self.saved.len() == 6
     }
     fn queue(&mut self, ctx: &egui::Context, tag: &str) {
         for event in ctx.input(|i| i.events.clone()) {
@@ -90,7 +90,11 @@ impl DockApp {
             if smoke.shown_frames < 3 || smoke.started.elapsed() < Duration::from_millis(150) {
                 return;
             }
-            "dock"
+            if self.workspaces.visible {
+                "dock-workspaces"
+            } else {
+                "dock"
+            }
         };
         if let Some(capture) = &mut smoke.capture {
             capture.queue(ctx, tag);
@@ -104,6 +108,7 @@ impl DockApp {
             match name.as_str() {
                 "settings-dock" => self.editor.capture_page(1),
                 "settings-items" => self.editor.capture_page(2),
+                "settings-advanced" => self.editor.capture_page(3),
                 _ => {}
             }
             ctx.request_repaint();

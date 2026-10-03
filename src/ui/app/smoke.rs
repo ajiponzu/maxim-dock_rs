@@ -259,7 +259,14 @@ impl DockApp {
                 self.pending.push(Command::Apply(config.clone()));
                 self.process_commands(ctx);
                 assert_eq!(self.config, config, "Apply must update configuration");
+                let application_bounds = self.window.bounds().unwrap();
+                self.pending.push(Command::ToggleWorkspaces);
+                self.process_commands(ctx);
                 let bounds = self.window.bounds().unwrap();
+                assert_eq!(
+                    bounds, application_bounds,
+                    "view switch must preserve window size and position"
+                );
                 let expected = dock_anchor_position(
                     self.config.dock.edge,
                     self.monitor.rect,

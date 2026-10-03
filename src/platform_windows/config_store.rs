@@ -183,6 +183,13 @@ mod tests {
         c.dock.edge = crate::core::DockEdge::Left;
         c.items[0].label = "Renamed".into();
         c.move_item(0, 2);
+        let mut workspace = crate::core::Workspace::new("保存確認");
+        workspace.entries.push(crate::core::WorkspaceEntry {
+            executable: "C:\\unplugged\\app.exe".into(),
+            arguments: vec!["空白 を含む引数".into()],
+            ..Default::default()
+        });
+        c.workspaces.push(workspace);
         store.save(&c).unwrap();
         let (_, restored, error) = ConfigStore::load(path, defaults);
         assert!(error.is_none());

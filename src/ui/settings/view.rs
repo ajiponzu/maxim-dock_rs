@@ -1,4 +1,4 @@
-use super::{Editor, Page, advanced, appearance, items};
+use super::{Editor, Page, advanced, appearance, items, workspaces};
 use crate::{
     core::Config,
     ui::{
@@ -56,6 +56,7 @@ pub(super) fn render(
             for (page, name, description) in [
                 (Page::Dock, "Dock", "表示・外観・動作"),
                 (Page::Items, "アイテム", "追加・名前・順序"),
+                (Page::Workspaces, "作業環境", "起動・引数・配置"),
                 (Page::Advanced, "詳細", "設定ファイルなど"),
             ] {
                 let selected = editor.page == page;
@@ -114,6 +115,7 @@ pub(super) fn render(
                         Page::Dock => appearance::render(editor, ui),
                         Page::Items => items::render(editor, ui, commands),
                         Page::Advanced => advanced::render(editor, ui, path, commands),
+                        Page::Workspaces => workspaces::render(editor, ui, live, commands),
                     }
                 });
         });

@@ -12,6 +12,13 @@ mod file_dialog;
 mod file_drop;
 pub use file_dialog::{FilePicker, FileSelection, PickKind};
 pub use file_drop::open_files_with_app;
+mod displays;
+pub use displays::display_catalog;
+mod workspace_launch;
+mod workspace_runner;
+mod workspace_windows;
+mod workspace_wsl;
+mod workspace_wsl_output;
 use windows::{
     Win32::{
         Foundation::{HWND, POINT, RECT},
@@ -27,6 +34,7 @@ use windows::{
     },
     core::{PCWSTR, w},
 };
+pub use workspace_runner::WorkspaceRunner;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PlatformError {

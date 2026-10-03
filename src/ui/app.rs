@@ -3,6 +3,7 @@ mod actions;
 mod dock_actions;
 mod smoke;
 mod smoke_capture;
+mod workspaces;
 
 use super::{commands::Command, dock_view, icons, poll_wake::PollWake, settings::Editor};
 use crate::{core::*, platform_windows::*};
@@ -31,6 +32,7 @@ pub struct DockApp {
     smoke: Option<Smoke>,
     _smoke_directory: Option<tempfile::TempDir>,
     picker: FilePicker,
+    workspaces: workspaces::Workspaces,
 }
 impl DockApp {
     pub fn new(
@@ -72,6 +74,22 @@ impl DockApp {
         if let Some(edge) = edge {
             config.dock.edge = edge;
         }
+        if smoke {
+            let mut workspace = Workspace::new("開発環境");
+            workspace.entries.push(WorkspaceEntry {
+                label: "エディター".into(),
+                executable: "C:\\Apps\\editor.exe".into(),
+                arguments: vec!["--new-window".into(), "C:\\Projects\\sample".into()],
+                placement: Placement::Rect {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 0.5,
+                    height: 1.0,
+                },
+                ..Default::default()
+            });
+            config.workspaces.push(workspace);
+        }
         let timing = config.dock.timing();
         config.validate()?;
         cc.egui_ctx.set_zoom_factor(1.0);
@@ -100,6 +118,7 @@ impl DockApp {
         }
         let now = Instant::now();
         let mut editor = Editor::new(config.clone());
+        editor.displays = display_catalog().unwrap_or_default();
         if message.is_some() {
             editor.open = true;
             editor.message = message;
@@ -142,6 +161,7 @@ impl DockApp {
             smoke: smoke.then(|| Smoke::new(now)),
             _smoke_directory: smoke_directory,
             picker: FilePicker::default(),
+            workspaces: Default::default(),
         })
     }
 
@@ -199,6 +219,7 @@ impl eframe::App for DockApp {
         self.receive_dialog();
         self.save_smoke_captures(ctx);
         self.process_commands(ctx);
+        self.receive_workspace();
         self.icons.receive(ctx);
         let now = Instant::now();
         let timing = self.config.dock.timing();
@@ -319,6 +340,7 @@ impl eframe::App for DockApp {
                 ui,
                 &self.config,
                 &self.icons,
+                self.workspaces.visible,
                 external_point,
                 &mut self.pending,
             );

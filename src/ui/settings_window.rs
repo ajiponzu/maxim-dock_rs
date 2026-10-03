@@ -120,6 +120,12 @@ mod tests {
         bridge.sync(&ctx, &editor, &config, false, Path::new("config.toml"));
         let mut edited = editor.clone();
         edited.draft.items[0].label = "edited in settings".into();
+        let mut workspace = crate::core::Workspace::new("draft workspace");
+        workspace.entries.push(crate::core::WorkspaceEntry {
+            executable: "C:\\missing\\app.exe".into(),
+            ..Default::default()
+        });
+        edited.draft.workspaces.push(workspace);
         bridge
             .sender
             .send((edited.clone(), vec![Command::Apply(edited.draft.clone())]))

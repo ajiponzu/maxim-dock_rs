@@ -1,5 +1,53 @@
 # 実装・検証記録
 
+## WSL 標準シェルを既定に変更・実 VS Code プロジェクト確認（2026-10-03）
+
+`wsl --user mita code --version` は成功する一方、直接--execはcodeを見つけられないことを確認。初回の既定を直接実行にした設計が普段のWSL使用と合っていなかったため、direct_exec未指定／falseはWSL標準シェル（--execなし）に変更。login_shell=trueは従来のbashログイン方式を維持し、直接実行は明示選択。旧設定のUUID・順序・Windowsモード・保存保護は維持し、利用者の設定ファイルは書換えない。
+
+Linuxシェルへ渡す行はcoreでコマンド・各引数をPOSIX引用。platformで既定シェル用の引用済み行だけraw_argに渡す。最初にWindows argvの自動引用を重ねた案はnativeテストで失敗したため修正し、再実行成功。単純に全引数を無引用で連結しない。GUIは標準／bashログイン／直接の3方式から選択し、結果にも使用方式を表示。該当レシピのdraftと保存設定が違う場合、Dockカードは旧設定で起動せず適用／破棄を促す（回帰テスト）。責任分離を維持、依存追加なし。
+
+通常60 tests成功、fmt／all-target clippy成功。WSL native3件（Linuxコマンド／診断／標準・ログイン環境とcode、専用Windows GUI配置）成功。さらに利用者の保存済みanalysisレシピを読み取り専用でcloneし、標準シェル・--new-window・Code.exe識別で実際に新規VS Codeを起動・配置。タイトルにanalysis [WSL: Ubuntu-24.04]を確認し、元configバイト列・既存Codeウィンドウ矩形不変を検証。新規ウィンドウは利用者へ通知して開いたまま残した。バージョン取得だけでプロジェクト起動成功と判定しない。実機テストは通常時ignoredで明示実行のみ。
+
+Phase2保存保護とPhase3配置・固定Dockは維持。実マウスによる設定Apply、他の既定シェル／ディストリビューション、TerminalのWSL起動、混在DPIは未検証。Linux WSLg識別／配置・対話入力UIは引き続き対象外。以下の過去記録にある直接実行既定は今回の変更で更新済み。
+
+最終native smoke: 30 hide/show、92 hidden polls、713 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASS（保存競合ERRORは想定内）。release exe／installer再生成、fmt --check／git diff --check成功。稼働中の古いDockプロセスは停止・置換していないため、更新版を使うには利用者側で終了／再起動が必要。
+
+## WSL ログイン環境・Windows ウィンドウ配置・診断（2026-10-03）
+
+利用者の `code` / Linuxユーザー指定を使った読み取り専用診断で、直接 `--exec code --version` は `execvpe(code): No such file or directory`、bashログイン経由ではWindows側のVS Code/bin/codeを検出しversion取得成功。同じCREATE_NO_WINDOW・stdin null・piped stdout/stderrの製品起動経路でも再現／成功を確認。設定のコマンド・引数や既存ウィンドウは変更していない。実プロジェクトをVS Codeで開く操作は未検証。
+
+`WslSettings`へlogin_shell／place_window（旧設定はfalse）追加。ログイン環境は `/bin/bash -lc 'exec "$@"' maximdock command args...` で読み込み、ユーザー引数をshell式に埋め込まない。bashの起動ファイルは通常どおり実行される。Windows配置は所有者exeを明示必須とし、Linuxコマンドの存在検査とは独立。起動前HWND/PID snapshot→WSL起動／任意の終了待ち→共通のWindows配置待ちの順。TerminalでWSLを使う場合もWindows側の実ウィンドウ所有者を指定する。
+
+責任分離: core/wslはモデル／argv、workspace_wslは起動／終了確認、workspace_wsl_outputは診断、workspace_runner/placementは両起動方式の共通配置待ち。新crateなし。既存windows crateのWin32_System_Pipes featureのみ追加しPeekNamedPipeで非ブロッキング取得。stdout/stderr各末尾8KiB・1pollの読込上限64KiB、UTF-8／UTF-16LEを処理。失敗時だけメモリー内の結果に表示し、自動ログ保存なし。GUI子がpipeを継承してもEOFを待たず、無制限reader thread／output()による終了待ちを避ける。待機なしは診断を捕捉しない。
+
+検証: 通常58 tests、fmt／all-target clippy -D warnings成功。ignoredの4件も明示実行成功（Linuxコマンド・引数／失敗診断・後続抑止、実code --version、WSL経由の専用Windows GUI配置、従来Windows配置／timeout／cancel）。3モニター実機でWSL経由の新規専用GUIをサブモニターへ配置し、同一タイトルの既存ウィンドウ矩形不変。従来Windows GUIも3モニター配置成功（各96DPI）。native smokeは30 hide/show、92 hidden polls、707 frames、3種PASS（保存競合ERRORは想定内）。Linux WSLg識別／配置、対話入出力UI、実VS Codeプロジェクト／Terminal起動、混在DPIでの実操作は未検証・対象外を区別し継続。Phase2保存保護とPhase3固定Dock／DnDは維持。
+
+以下の初回WSL記録で「配置しない／stderr null」とあるのは当時の仕様。この更新で任意のWindows配置と終了待機時の診断取得を追加した。
+
+release exe／installer再生成成功、最終fmt --check／git diff --check成功。実設定ファイルの書換え・既存アプリの停止はしていない。インストーラの実更新／アンインストールは今回未検証。
+
+## 作業環境の WSL モード（2026-10-03）
+
+最終native smokeはhide/show30回、hidden poll92回、713 frames、3種のPASSで正常終了。保存競合テストのERRORは想定内。release exeとinstallerを再生成し、fmt --check／git diff --checkも成功。インストーラの実更新・アンインストール操作は今回未検証。
+
+エントリーに optional WslSettings を追加（未指定は従来どおりWindows）。core/wsl.rs はディストリビューション／ユーザー／終了待機と上限のモデル・検証・argv構築、platform_windows/workspace_wsl.rs はSystem32/wsl.exeへの直接起動と終了コード／中止／timeout、UIのexecution.rsは実行モード編集だけを担当する。依存追加なし。LinuxコマンドにWindowsのexe存在チェックを適用せず、Linux cwd を --cd へ渡す。--exec で暗黙のshell評価を行わない。WSLにはwindow enumeration／placementを適用しない。
+
+既定は成功終了待機60秒（上限1〜600秒）。WSL処理失敗時は後続を起動せず、停止理由を結果へ追加。待機なしは起動要求だけを成功とし、準備完了を保証しない。stdin/stdout/stderrはnull、CREATE_NO_WINDOWを維持。キャンセル／タイムアウトでLinuxプロセスやWSLをkillしない。インストールやOS登録を変更しない。準備成功はそのコマンドの終了コードであり、任意サービスのreadinessやWSLの永続稼働の保証ではない。
+
+Ubuntu-24.04で true／false／printf とシーケンス失敗時の後続抑止を実機確認。空文字／日本語・空白／引用符／shell式風文字列を正確にargv配送。通常テスト56件成功、WSL実機テスト1件明示成功（desktop window fixtureは今回未再実行）。fmt／all-target clippy成功。shellに依存しない短命の専用receiverで終了コード・キャンセル／timeout後のプロセス生存を検査。WSLg配置／対話Terminal／標準出力UI／WSLのインストールは未実装で今回のコマンド実行モードの範囲外。Phase2の互換保存とPhase3の固定Dock／DnDは維持。
+
+## Dock の操作ボタンを固定領域へ分離（2026-10-03）
+
+カードの ScrollArea と操作ボタンの領域を分離し、layout.rs で共通の矩形を計算する。横 Dock は右端、縦 Dock は下端に切替／設定を固定する。項目の0/1/16/64件・表示モード・スクロール入力に関係なく同じボタン矩形になること、クリック可能なことを四辺の egui 疑似入力で検証。カード側の clip を固定領域から分離し、ボタン上への外部 drop がアプリカードに誤配送されず、通常カードへの drop は従来どおり配送されることもテスト。
+
+fmt／all-target clippy／通常52 tests成功。native smoke は30 hide/show、92 hidden polls、717 frames、3種のPASSで正常終了（意図した保存競合のERRORのみ）。実描画PNGを確認し、release exe／installer を再生成。実マウス・混在DPIの手動受け入れは従来どおり別途未検証。
+
+## Dock の表示モード切替でサイズを維持（2026-10-03）
+
+アプリ一覧をメインとし、ウィンドウ寸法は常にアプリ項目数から算出する。作業環境の件数は寸法に影響させず、既存の主軸 ScrollArea 内で表示する。切替 command から native 再配置を除去し、アプリ／作業環境の scroll ID を分けてスクロール位置を独立させた。
+
+四辺・アプリ0/1/3件・作業環境0/1/16/64件のサイズ不変テストを追加。通常50 tests成功（native fixture 1件は今回未再実行）、fmt／all-target clippy／native smoke成功。smokeでは切替前後の実 HWND 矩形一致を検証し、30 hide/show、92 hidden polls、710 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASS。意図した保存競合の ERROR は従来どおり。配布 exe と installer を再生成。実マウスによる大量項目のスクロールは未検証。
+
 ## 外部ファイルをドロップ先アプリで開く（2026-10-03）
 
 ユーザー指定「アプリで開く。登録は設定から」に従い、Dock全体への外部drop登録を廃止。ui/dock_drop.rsはカード矩形とclipの判定・受け入れ表示・OpenDropped／RejectDrop発行のみ、ui/app/dock_actions.rsが安定UUIDから現在の登録項目を選択しWindows adapterに接続する。platform_windows/file_drop.rsはexe／lnkの実行計画・全ファイル検証・引用・Shell起動を担当。設定のファイル選択は従来のitem_importでdraftに追加しApplyで保存する。外部dropは設定・未保存draftを変更せず、コピー／移動・フォルダーdropも行わない。
@@ -277,3 +325,21 @@ egui-winit 0.36.2 の WindowEvent::DroppedFile → RawInput.dropped_files、Drop
 ### ログイン時起動の設計調査（登録は未実装）
 
 候補はユーザー単位 HKCU Run と [FOLDERID_Startup](https://learn.microsoft.com/en-us/windows/win32/shell/knownfolderid) のショートカット。今回は OS 設定を変更しない。将来は明示 opt-in、配布exeの絶対パス（引用符付き）、自分の登録だけの解除、exe移動時の修復・二重起動防止を設計する。開発 target/debug exe を自動登録しない。RunOnce は常駐用途に使わない。[Microsoft Run/RunOnce](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys) は起動が遅延し得るため即時表示を保証しない。利用者が Explorer でも管理できるユーザー Startup link を第一候補とし、サービスや昇格タスクは不要。登録実装は brief の Phase 4 に留める。
+
+## 作業環境とバイナリ名の統一（2026-10-03）
+
+- 依存 crate は追加しない。既存 `windows` の `Win32_Graphics_Dwm` feature のみ追加し、cloaked window を配置対象から除外する。可視フラグだけでは別仮想デスクトップ等の非表示 window を拾う可能性があるため。
+- モニター識別は EnumDisplayDevicesW の EDD_GET_DEVICE_INTERFACE_NAME を使用し、HMONITOR／列挙番号を永続化しない。OS・ドライバー側の識別変更時は primary に fallback して通知する。
+- 外部アプリの内部タブ／未保存内容を推測して取得しない。実行ファイル、引数配列、作業ディレクトリ、モニター、正規化された配置を保存する。
+
+設定モデル／検証／配置数学／候補安定化は core に追加。Windows adapter は displays / workspace_launch / workspace_windows / workspace_runner に分離し、UI は workspaces editor / placement diagram / workspace card / controls / App wiring に分離。ui/mod.rs は変更せず公開入口のまま。既存 v1 では workspaces を空で補い、原本保護と競合検知を維持する。依存追加の代わりに既存 crate と標準 Command を使用し、引数ベクトルを直接渡す。
+
+起動前の全 top-level HWND/PID（hidden/cloaked/owned を含む）を snapshot。候補は可視・owner 無し・tool window 無し・cloaked 無し、実行ファイル一致と任意のタイトル条件で絞る。新規候補が一つだけ約600ms安定した時だけ移動し、複数候補は失敗として報告する。15秒上限、中止、二重ジョブ拒否、逐次起動を実装。配置は worker の thread DPI context を Per-Monitor V2 にして物理 work area へ非同期要求し、結果を最大2秒確認。旧ウィンドウを再利用するアプリは配置しない。外部アプリが同時に同じ exe の新規ウィンドウを作る場合の完全な起動帰属までは保証できないので、タイトル条件を使用する。
+
+Windows API の根拠: [モニター device interface](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-enumdisplaydevicesw)、[DPI context と座標仮想化](https://learn.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows)。アプリ内部の未保存状態・タブを汎用取得する API は導入しない。
+
+バイナリは Cargo の明示 bin と配布／ショートカット／起動先を MaXIMDock.exe に統一。installer AppId は維持し、更新時 {app} の旧 exe だけを InstallDelete で除去する。設定フォルダー名は変更しない。GUI subsystem は維持する。呼び出し元コードの変更、親プロセス監視、常時コンソール接続は不要で実装しない。旧配布名にサフィックスがあったため、登録された表示名による Stop-Process と実際のプロセス名が不一致になり得た。専用 PowerShell 検証で PassThru/PID と no-PassThru/name の両方の停止を確認した。
+
+Phase 2 の設定・保存、Phase 3 のトレイ／アイコン／DnD／モニター切替は維持。今回追加した作業環境とは別に、スタートアップ OS 登録、アプリ内部状態の自動キャプチャ、ウィンドウ内容の完全復元、モニター切断中の完全自動追従は未実装。前二者は今回のレシピ方式の対象外、後二者は各アプリ／ドライバー依存のため。実機では3モニター／各96DPIで fixture を確認し、混在 DPI と日常アプリでの再現は未検証。
+
+最終通常テスト49件、明示 native fixture 1件、fmt／all-target clippy（warnings をエラー）／diff check 成功。native smoke は四辺で表示モードを交互に切り替え、30回の実 hide/show と即再配置・保存競合保護・hidden settings の復帰を検証。Dock 2モードと設定4ページの描画 PNG を確認。release と installer を再生成。操作ガイドは docs/workspaces.md、再発防止の境界・snapshot／中止規則は AGENTS.md に追加した。

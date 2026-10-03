@@ -2,6 +2,10 @@ use crate::core::Config;
 
 pub(super) enum Command {
     Launch(uuid::Uuid),
+    ToggleWorkspaces,
+    LaunchWorkspace(uuid::Uuid),
+    CancelWorkspace,
+    RefreshDisplays,
     PickFiles,
     PickFolder,
     Apply(Config),

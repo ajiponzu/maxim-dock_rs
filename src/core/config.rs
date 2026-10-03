@@ -9,6 +9,8 @@ pub struct Config {
     pub dock: DockSettings,
     pub appearance: Appearance,
     pub items: Vec<DockItem>,
+    #[serde(default)]
+    pub workspaces: Vec<super::Workspace>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -136,6 +138,7 @@ impl Config {
             version: 1,
             dock: DockSettings::default(),
             appearance: Appearance::default(),
+            workspaces: Vec::new(),
             items: vec![
                 DockItem::new("Explorer", "C:\\Windows\\explorer.exe", TargetKind::Path),
                 DockItem::new("Home", home, TargetKind::Path),
@@ -203,6 +206,7 @@ impl Config {
                 return fail("Duplicate target. Remove the duplicate item before saving.");
             }
         }
+        super::validate_workspaces(&self.workspaces)?;
         Ok(())
     }
 

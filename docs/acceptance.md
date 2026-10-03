@@ -1,5 +1,51 @@
 # 受け入れ状況
 
+## WSL 標準シェル・実 VS Code 起動（2026-10-03）
+
+- [x] 既定と旧設定のdirect_exec未指定は標準シェル。各単語のPOSIX引用・直接実行opt-in・TOML互換をcore検証。
+- [x] 標準／bashログイン／直接のUI無操作描画、未保存のWSL方式／引数変更・削除が旧レシピを起動しないことを検証。
+- [x] 標準シェルの日本語・空白・引用符・空文字・shell式風引数配送とcode --version、診断・後続抑止、専用Windows GUIのサブモニター配置を実機確認。
+- [x] 保存済みanalysisの実プロジェクトを新規VS Codeで起動・配置。analysis [WSL: Ubuntu-24.04]のタイトルを確認。configバイト列と既存Codeウィンドウ矩形不変。
+- [x] 通常60 tests、WSL実機3件＋実VS Codeプロジェクト1件明示成功、fmt／all-target clippy成功。
+- [x] native smoke: 30 hide/show、92 hidden polls、713 frames、3種PASS。release exe／installer生成と最終fmt／diff check成功。
+- [ ] 実マウスでの設定保存／再起動、他ディストリビューション・非POSIX既定シェル、Terminal・混在DPI。
+
+## WSL ログイン環境・Windows ウィンドウ配置（2026-10-03）
+
+- [x] login_shell／place_window未指定はfalse。位置引数配送・配置所有者必須のcore検証、設定UIの無操作描画。
+- [x] 利用者のWSLユーザーで直接code検索失敗を再現。製品と同じ非表示起動でログイン経由code --version成功、直接実行の診断表示を確認。
+- [x] Linuxコマンド直接／ログイン両方で空文字・日本語・引用符・shell式風引数を正確に配送。失敗出力はUTF-8／UTF-16LE・上限付き・EOF待機なし。
+- [x] WSL経由の専用Windows GUIをサブモニターへ配置、同名の既存ウィンドウ不変（3モニター実機）。従来Windows GUIも3モニター配置・timeout・cancel・既存保護を再確認。
+- [x] 通常58 tests・ignored実機4件明示成功、fmt／all-target clippy成功。native smoke: 30 hide/show、92 hidden polls、707 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASS。
+- [x] release exe／installer再生成、fmt --check／git diff --check成功。実インストール操作は今回未検証。
+- [ ] 実マウスでのWSL設定・保存・再起動、実VS Codeプロジェクトの起動・配置、Terminal内WSLの起動・配置、混在DPI。
+- 未実装: Linux WSLgウィンドウの識別／配置、対話入出力UI、WSL自動インストール。Windows所有者exeを持つ新規ウィンドウの配置とは別。
+
+## WSL モード（2026-10-03）
+
+- [x] optional WSL設定のTOML round-trip、旧エントリーをWindowsモードで読込、Linuxパスと引数配列・上限のvalidation（coreテスト）。
+- [x] WSL設定UIの描画は設定を書換えず、Linuxコマンドを保持（headlessテスト）。
+- [x] 専用receiverで終了コード0／非0、中止とtimeout後も起動済みプロセスを強制終了しないことを検証。
+- [x] Ubuntu-24.04実機で true／false、printfによる空文字／日本語・空白／引用符／shell式風文字列の正確な配送、WSL失敗後の後続エントリー抑止。
+- [x] 通常56 tests成功、WSL実機1件明示成功、fmt／all-target clippy -D warnings成功。
+- [x] native smoke: hide/show30回、hidden poll92回、713 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASS。release exe／installer再生成成功。
+- [ ] 実操作でのWSLモード切替／保存／再起動、他ディストリビューション／Linuxユーザー／常駐コマンド・準備スクリプト。
+- 未実装: WSLgウィンドウ配置、Terminalや対話入力、標準出力の閲覧、WSLインストール／自動設定。今回はLinuxコマンドの起動と終了結果による逐次実行に限定。
+
+## 固定操作ボタン（2026-10-03）
+
+- [x] 四辺・両表示モード・作業環境0/1/16/64件・スクロール入力後も切替／設定ボタンの矩形が一致し、クリック可能（egui 疑似入力）。
+- [x] 外部dropは操作ボタン上で拒否し、アプリカード上では正しいUUIDに配送（四辺の描画経路テスト）。既存DnDテストも成功。
+- [x] fmt／all-target clippy -D warnings／通常52 tests／native smoke／配布 exe・installer 再生成。実描画PNG確認。
+- [ ] 実マウスでのスクロール・ボタン操作、混在DPIの手動確認。
+
+## 表示モード切替時の Dock サイズ固定（2026-10-03）
+
+- [x] 四辺・アプリ0/1/3件・作業環境0/1/16/64件で、作業環境件数によりサイズが変わらない（unit test）。
+- [x] native smoke でアプリ／作業環境の切替前後の実 HWND の位置・サイズ一致。30 hide/showとhidden recoveryも成功。
+- [x] fmt／all-target clippy -D warnings／通常50 tests／配布 exe・installer の再ビルド成功。
+- [ ] 実マウスによる大量作業環境の横／縦スクロール操作。ScrollArea を維持し、表示モードごとに独立した scroll ID を設定。
+
 記録日: 2026-10-03。チェックは実際に確認した条件のみ。未チェックの条件には、実装済みだが手動未検証のものも含む。
 
 ## 外部ファイルをアプリで開く（2026-10-03）
@@ -158,3 +204,21 @@ CSSと外部テーマファイルのインポート、ホットリロード、�
 - [x] fmt / clippy -D warnings / test（21 tests）、native smoke の NATIVE / PHASE2 / PHASE3_SMOKE_PASS
 
 未実装: モノクロ Shell icon の特殊変換、MAX_PATH 超の Shell icon 抽出、スタートアップ登録、Phase 4 の拡大等。高解像度は上記Factory方式、Dock内DnD並べ替えは上記UUID方式で対応済み。安定した Up/Down と fallback を残し、複雑な Shell/画像経路と OS 自動起動の変更は後回し。混在 DPI／OS 実入力は自動テストで代替できないため未合格。詳細と検証手順は notes を参照。
+## 作業環境拡張の受け入れ（2026-10-03）
+
+- [x] cargo fmt --check、clippy --locked --all-targets -D warnings、通常テスト49件成功。native fixture テスト1件は通常では ignored にし、desktop access を許可して明示実行・成功。git diff --check も成功。
+- [x] 旧 v1 設定は workspaces 無しで読込可能、UUID／項目順序を保持。引数配列／配置の TOML round-trip、保存・再読込、deferred draft と live の分離を自動検証。
+- [x] 負座標 work area の半分配置、未接続モニターの primary fallback、候補安定化・既存候補除外を core テストで検証。
+- [x] 四辺の36pxボタン、横は隣接・縦は切替が歯車の上、クリックで正しい command を一度発行（egui 疑似入力）。設定4ページを680×520、ライト／ダーク・全配色で描画テスト。
+- [x] 専用 GUI fixture に空文字／日本語／空白／引用符／末尾バックスラッシュ／URLを正確に argv で配送し、作業ディレクトリも一致。
+- [x] fixture の新規ウィンドウだけを右半分へ配置し、同名既存ウィンドウの位置／サイズ不変。曖昧な2ウィンドウは配置拒否、15秒タイムアウト、中止後の次エントリー未起動、二重ジョブ拒否を実 Win32 検証。
+- [x] 接続中の3モニターに Per-Monitor V2 fixture を指定して最大化し、実矩形の中心が指定モニター内にあることを検証。全モニターで window DPI は96。
+- [x] native smoke 最終実行: 実HWND hide/show30回、hidden poll67回、752 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASS。四辺で作業環境一覧への切替・即再配置も command 経路で検証。競合保存の ERROR 1件は意図した検証。Dock 2モードと設定4ページの PNG を生成し、新しい設定ページと小型ボタンの描画を確認。
+- [x] release／Inno Setup のビルド成功。生成物は dist/MaXIMDock.exe、dist/MaXImDock-v2-Setup-x64.exe。
+- [x] release PE subsystem=2（GUI）。専用 PowerShell 親から Start-Process -PassThru の PID停止と、no-PassThru 起動後 Stop-Process -Name MaXIMDock -Force の名前停止に成功。利用者の既存同名プロセスがあればテストを拒否する。
+- [ ] 実マウスによる作業環境の作成・編集・モニター選択・保存・起動を一通り手動確認。
+- [ ] Windows Terminal／エディター／ブラウザー等の実アプリ、新規ウィンドウフラグ、broker exe／タイトル条件、サイズ制約／管理者権限の互換性。
+- [ ] 100%/150% 等の混在 DPI、復元中のモニター切断・再接続、仮想デスクトップ・スリープ／ロック。
+- [ ] installer の実更新／旧 exe除去／ショートカット／アンインストール。コンパイル成功は導入試験の代用ではない。
+
+Phase 2・3 の機能は実装済みで維持し、下記の既存手動未検証項目も継続。未実装は任意アプリの内部タブ／未保存内容の自動キャプチャ・完全復元、OSへのスタートアップ登録、切断時の完全自動追従。今回の起動レシピの範囲外、またはアプリ／OSごとの契約が必要なため。詳細は notes / workspaces を参照。

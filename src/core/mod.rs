@@ -1,6 +1,10 @@
 mod config;
 mod geometry;
 mod visibility;
+mod workspace;
+mod wsl;
+pub use workspace::*;
+pub use wsl::*;
 
 pub use config::*;
 pub use geometry::*;

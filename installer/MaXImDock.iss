@@ -2,7 +2,7 @@
 #define AppName "MaXImDock"
 #define AppVersion "0.1.0"
 #define AppPublisher "MaXImDock"
-#define AppExeName "MaXImDock-v2-x86_64.exe"
+#define AppExeName "MaXIMDock.exe"
 
 [Setup]
 AppId={{D5A2B4AC-91D6-48A6-B160-81B1BA20B4DD}
@@ -39,9 +39,12 @@ Name: "desktopicon"; Description: "デスクトップにショートカットを
 [Files]
 Source: "..\dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
+[InstallDelete]
+Type: files; Name: "{app}\MaXImDock.exe"
+
 [Icons]
-Name: "{group}\MaXImDock v2"; Filename: "{app}\{#AppExeName}"
-Name: "{autodesktop}\MaXImDock v2"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{group}\MaXImDock"; Filename: "{app}\{#AppExeName}"
+Name: "{autodesktop}\MaXImDock"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "MaXImDock v2 を起動"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "MaXImDock を起動"; Flags: nowait postinstall skipifsilent

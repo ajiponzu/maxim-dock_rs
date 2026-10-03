@@ -22,8 +22,8 @@ cargo build --release --locked --manifest-path (Join-Path $repoRoot 'Cargo.toml'
 if ($LASTEXITCODE -ne 0) { throw "Release build failed: $LASTEXITCODE" }
 
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
-Copy-Item -LiteralPath (Join-Path $repoRoot 'target\release\maxim-dock_rs.exe') `
-    -Destination (Join-Path $dist 'MaXImDock-v2-x86_64.exe') -Force
+Copy-Item -LiteralPath (Join-Path $repoRoot 'target\release\MaXIMDock.exe') `
+    -Destination (Join-Path $dist 'MaXIMDock.exe') -Force
 
 Push-Location $PSScriptRoot
 try {

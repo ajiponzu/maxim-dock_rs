@@ -13,15 +13,21 @@ cargo run --locked
 cargo run --locked -- --edge bottom
 ```
 
-配布用 exe とインストーラーは `installer\build.ps1` で生成できます（Rust stable MSVC と Inno Setup 6.7.3 が必要です）。出力は `dist\MaXImDock-v2-x86_64.exe` と `dist\MaXImDock-v2-Setup-x64.exe` です。インストーラーはユーザー単位で導入し、スタートメニューに登録します。デスクトップアイコンは任意で選択できます。アンインストール時はアプリ本体とショートカットを削除し、ユーザー設定は保持します。Inno Setup 6 のコンパイラーは非商用利用向けです。商用配布では Inno Setup のライセンス条件を確認してください。
+配布用 exe とインストーラーは `installer\build.ps1` で生成できます（Rust stable MSVC と Inno Setup 6.7.3 が必要です）。出力は `dist\MaXIMDock.exe` と `dist\MaXImDock-v2-Setup-x64.exe` です。インストーラーはユーザー単位で導入し、スタートメニューに登録します。デスクトップアイコンは任意で選択できます。アンインストール時はアプリ本体とショートカットを削除し、ユーザー設定は保持します。同じ AppId で更新し、インストール先の旧 `MaXImDock-v2-x86_64.exe` を除去します。Inno Setup 6 のコンパイラーは非商用利用向けです。商用配布では Inno Setup のライセンス条件を確認してください。
+
+release はコンソールを表示しない Windows GUI executable です。外部プロセスからの停止は PID、または `Stop-Process -Name MaXIMDock -Force` を使用できます。親アプリの登録パス／停止に使う名前も新しいファイル名に合わせてください。呼び出し元のソースは変更しません。
 
 上端の 2 物理 px にカーソルを置くと Dock を表示する。範囲外に出てから既定 500 ms で非表示、再表示直後の 200 ms は保持する。Dock にフォーカスがある時の Esc、または右クリック → Hide で非表示。Esc はグローバルキーではない。表示中にクリックでき、復帰時に不要なフォーカス取得を避ける。
 
 Dock の歯車「設定」、または右クリック → 設定で別ウィンドウの設定画面を開く。設定を閉じてもアプリは継続する。設定を開いている間は自動 hide を保留する。明示的に隠した Dock と設定ウィンドウは共存できる。
 
-Dock は角丸パネルと大きめのアイコン、16 pt のラベルを使用する。設定画面は「Dock／アイテム／詳細」の3ページで、本文・ボタンは17 pt、補足は15 pt。配色はシステム／ライト／ダークに対応し、下部の「適用して保存」「変更を破棄」はスクロールしても表示される。Windows の DPI に従って拡大し、独自のズームは変更しない。
+Dock は角丸パネルと大きめのアイコン、16 pt のラベルを使用する。設定画面は「Dock／アイテム／作業環境／詳細」の4ページで、本文・ボタンは17 pt、補足は15 pt。配色はシステム／ライト／ダークに対応し、下部の「適用して保存」「変更を破棄」はスクロールしても表示される。Windows の DPI に従って拡大し、独自のズームは変更しない。
+
+歯車の隣（縦 Dock では上側）の四分割アイコンで、アプリ一覧と作業環境一覧を切り替えます。両ボタンは36px。設定の「作業環境」で名前付きの起動レシピを作成し、各アプリの実行ファイル・引数・作業ディレクトリ・モニター・配置を保存できます。ファイル／URL／フォルダーは個別の引数として指定します。配置は最大化・上下左右半分・四隅・カスタム割合に対応。保存後に作業環境カードをクリックすると順に起動・配置します。[設定と制約](docs/workspaces.md)を参照してください。
 
 設定では次の操作ができる。
+
+作業環境の各エントリーで「WSL モード」を選択できます。既定は普段の `wsl code` と同じ「WSL 標準シェル」で、引数は個別に安全に引用します。必要ならbashログインシェル／直接実行も選べます。「起動した Windows ウィンドウを配置する」を選び、Windows側の `Code.exe` 等を指定すると同じモニター・配置を利用できます。成功終了を待って次へ進み、失敗時は診断出力を表示して後続を止めます。未保存のレシピ変更がある場合は古い設定で起動せず通知します。コンソール表示・Linux WSLgウィンドウの配置は行いません。[WSL モードの設定](docs/workspaces.md#wsl-モード)を参照してください。
 
 カラーテーマは標準／Ocean／Forest／Rose／カスタムから選べます。カスタムは色ボタンや `#RRGGBB`、TOMLで編集可能です。CSS は使用しません。[テーマの設定方法](docs/color-themes.md)を参照してください。
 
@@ -59,10 +65,14 @@ $env:RUST_LOG = 'maxim_dock_rs=debug'
 cargo run --locked
 # 約20秒で検証し正常終了。実設定には触れない
 cargo run --locked -- --smoke-test
-# 任意: Dock と設定3ページの描画確認用 PNG を保存
+# 任意: Dock と設定4ページの描画確認用 PNG を保存
 $env:MAXIMDOCK_SMOKE_CAPTURE_DIR = 'target/ui-review'
 cargo run --locked --target-dir target/refactor-smoke -- --smoke-test
 Remove-Item Env:MAXIMDOCK_SMOKE_CAPTURE_DIR
+# 専用 GUI fixture の起動・配置・中止（実ユーザーアプリは起動しない）
+cargo test --locked native_workspace_launch_placement_timeout_cancel_and_existing_window_safety -- --ignored --nocapture
+# release の PID／プロセス名停止（既存 MaXIMDock があれば検証を拒否）
+./tests/parent-control.ps1
 ```
 
 smoke は一時設定だけを使う。Top で起動し、四辺への Apply/save/reload、可視 Dock の即再配置、実 HWND の30回 hide/show、hidden の GetCursorPos、描画再開、hidden root と設定 child の共存、設定閉鎖後の継続を検査する。ホットゾーン進入と UI コマンドは疑似入力。クリック操作・ネイティブダイアログ・実カーソルの端進入・150% DPI の手動受け入れは未検証。

@@ -91,7 +91,7 @@ pub(super) fn render(
 
     rect
 }
-fn paint_label(ui: &egui::Ui, rect: egui::Rect, label: &str, color: egui::Color32) {
+pub(super) fn paint_label(ui: &egui::Ui, rect: egui::Rect, label: &str, color: egui::Color32) {
     let mut job = egui::text::LayoutJob::simple_singleline(
         label.to_owned(),
         egui::FontId::proportional(DOCK_LABEL_SIZE),

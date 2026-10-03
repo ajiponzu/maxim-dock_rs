@@ -12,6 +12,10 @@ impl DockApp {
     pub(super) fn process_commands(&mut self, ctx: &egui::Context) {
         for command in std::mem::take(&mut self.pending) {
             match command {
+                Command::ToggleWorkspaces => self.toggle_workspaces(ctx),
+                Command::LaunchWorkspace(id) => self.launch_workspace(id, ctx),
+                Command::CancelWorkspace => self.cancel_workspace(),
+                Command::RefreshDisplays => self.refresh_displays(),
                 Command::Launch(id) => {
                     if let Some(item) = self.config.items.iter().find(|i| i.id == id) {
                         tracing::info!(id = %id, target = %masked_target(item), "launch requested");
