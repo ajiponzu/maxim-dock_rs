@@ -24,12 +24,17 @@ pub(super) fn launch(entry: &WorkspaceEntry) -> Result<(), String> {
     }
     let path = if settings.launcher.is_empty() {
         PathBuf::from(std::env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA がありません。")?)
-            .join("Microsoft/WindowsApps/wt.exe")
+            .join("Microsoft/WindowsApps")
+            .join(settings.host.alias())
     } else {
         super::workspace_launch::executable(&settings.launcher)?
     };
     if !path.is_file() {
-        return Err("Windows Terminal (wt.exe) が見つかりません。インストールと実行エイリアスを確認するか、Terminal 実行ファイルを指定してください。".into());
+        return Err(format!(
+            "{} ({}) が見つかりません。インストールと実行エイリアスを確認するか、Terminal 実行ファイルを指定してください。",
+            settings.host.label(),
+            settings.host.alias()
+        ));
     }
     Command::new(path)
         .args(settings.arguments(entry.id, &entry.working_directory))
@@ -42,6 +47,8 @@ pub(super) fn launch(entry: &WorkspaceEntry) -> Result<(), String> {
         .map_err(|e| format!("Terminal 起動失敗: {e}"))
 }
 pub(super) fn matches(entry: &WorkspaceEntry, window: &super::workspace_windows::Window) -> bool {
+    // Both Microsoft hosts use WindowsTerminal.exe (verified in their manifests).
+    // The UUID title and runner's prelaunch HWND/PID snapshot isolate this launch.
     window.executable.rsplit('\\').next() == Some("windowsterminal.exe")
         && window.title.contains(&TerminalSettings::title(entry.id))
 }

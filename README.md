@@ -25,7 +25,7 @@ Dock は角丸パネルと大きめのアイコン、16 pt のラベルを使用
 
 歯車の隣（縦 Dock では上側）の四分割アイコンで、アプリ一覧と作業環境一覧を切り替えます。両ボタンは36px。設定の「作業環境」で名前付きの起動レシピを作成し、各アプリの実行ファイル・引数・作業ディレクトリ・モニター・配置を保存できます。ファイル／URL／フォルダーは個別の引数として指定します。配置は最大化・上下左右半分・四隅・カスタム割合に対応。保存後に作業環境カードをクリックすると順に起動・配置します。[設定と制約](docs/workspaces.md)を参照してください。
 
-作業環境に「Windows Terminal モード」を追加できます。PowerShell／コマンドプロンプト／WSL (bash) と起動コマンドを選択し、Python等の対話アプリを開いた状態にできます。WSLで作業フォルダーと `codex` を設定すれば、そのフォルダーで起動します。Terminalの新規ウィンドウを自動識別して、通常と同じモニター・配置を使用します。[Terminal の設定例と制約](docs/workspaces.md#windows-terminal-モード)を参照してください。
+作業環境の「Terminal モード」で Windows Terminal／Intelligent Terminal を選択できます。PowerShell／コマンドプロンプト／WSL (bash) と起動コマンドを選択し、Python等の対話アプリを開いた状態にできます。WSLで作業フォルダーと `codex` を設定すれば、そのフォルダーで起動します。Terminalの新規ウィンドウを自動識別して、通常と同じモニター・配置を使用します。既存設定は Windows Terminal を維持します。[Terminal の設定例と制約](docs/workspaces.md#windows-terminal-モード)を参照してください。
 
 設定では次の操作ができる。
 
@@ -75,6 +75,8 @@ Remove-Item Env:MAXIMDOCK_SMOKE_CAPTURE_DIR
 cargo test --locked native_workspace_launch_placement_timeout_cancel_and_existing_window_safety -- --ignored --nocapture
 # Terminal専用テスト: PowerShell/cmd/Ubuntu-24.04の無害なスクリプトと新規ウィンドウ配置
 cargo test --locked native_terminal_scripts_run_in_requested_directories_and_preserve_existing_windows -- --ignored --nocapture
+# Intelligent Terminal専用: 同じ3シェル・配置・既存端末保護（要wtai.exe）
+cargo test --locked native_intelligent_terminal_scripts_and_placement_preserve_existing_windows -- --ignored --nocapture
 # release の PID／プロセス名停止（既存 MaXIMDock があれば検証を拒否）
 ./tests/parent-control.ps1
 ```

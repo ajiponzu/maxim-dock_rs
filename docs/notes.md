@@ -1,5 +1,17 @@
 # 実装・検証記録
 
+## Intelligent Terminal の選択対応（2026-11-07）
+
+配布exe／installerも `installer/build.ps1` で再生成成功。実インストール・稼働中Dockの置換は行っていない。
+
+TerminalSettings.host に WindowsTerminal（既定）／IntelligentTerminal を追加。既存TOMLはhost未指定でWindows Terminalを維持。設定UIのTerminalモードから選択し、空欄launcherは現在ユーザーのWindowsApps内wt.exe／wtai.exeへ解決する。明示launcherは従来どおり優先。描画はdraft編集のみ、起動はplatform worker、引数構築とモデルはcoreに維持し、新規依存なし。保存原本保護／競合検知、未保存host変更時の旧レシピ起動拒否も維持する。
+
+[公式manifest](https://github.com/microsoft/intelligent-terminal/blob/main/src/cascadia/CascadiaPackage/Package.appxmanifest)と[引数実装](https://github.com/microsoft/intelligent-terminal/blob/main/src/cascadia/TerminalApp/AppCommandlineArgs.cpp)を確認。ローカルIntelligent Terminal 0.3.3083.0のmanifestでも起動aliasはwtai.exe、GUI所有者はWindowsTerminal.exe。既存の新規window／固定UUIDタイトル／本文エンコードの経路を共用できる。所有者名が両端末で共通でも起動前の全HWND/PID snapshot＋UUIDタイトル＋一意候補チェックを維持する。
+
+検証: 通常67 tests成功（native7件ignored）、fmt／all-target clippy -D warnings／diff check成功。両端末の明示native各1件でPowerShell／cmd／Ubuntu-24.04 bashを実行し、日本語・空白cwd、本文marker、TTY、サブモニター右半分の配置、端末保持、既存Terminal矩形不変を確認。今回生成したUUID付きwindowだけを閉じる。TOML旧設定・両host往復、Intelligent Terminalを含む保存再読込、両host×3shellの無操作UI描画、未保存host変更の起動拒否も自動検証した。
+
+native smokeは実HWND30 hide/show、hidden polls92、711 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASS。画面端進入・tray等は疑似入力で、保存競合ERRORは意図した検証。実マウスでの端末選択と保存、実python／codex対話、agent pane／既存agentセッション再開、混在DPIは未検証。実行中端末の内容・内部セッション復元、agent固有CLI、内部コマンドreadinessは今回の新規端末起動の範囲外として未実装。Phase2／3の手動未検証項目は継続。
+
 ## Windows Terminal 作業環境モード（2026-10-03）
 
 optional TerminalSettings を追加し、旧レシピは従来モードを維持。Terminal とバックグラウンド WSL は排他。Windows PowerShell／cmd／WSL bash、起動スクリプト、作業ディレクトリ、終了後のシェル保持、任意 wt.exe 指定を保存する。常に新規 Terminal を作成し、UUID の固定タイトル＋WindowsTerminal.exe で自動識別。既存全 HWND/PID snapshot と共通の一意候補・配置待ちを再利用し、既存端末にはタブ追加／移動しない。利用者の実 config や Terminal の設定は変更しない。

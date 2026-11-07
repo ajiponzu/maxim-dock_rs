@@ -1,5 +1,17 @@
 # 受け入れ状況
 
+## Intelligent Terminal の選択対応（2026-11-07）
+
+- [x] release exe／Inno Setup installerを再生成。実更新の受け入れとは区別する。
+- [x] TerminalモードでWindows Terminal／Intelligent Terminalを選択・保存。未指定hostは従来のWindows Terminal、明示launcherを優先。
+- [x] 旧TOML互換／両host往復、Intelligent Terminal設定の保存再読込、未保存host変更の旧レシピ起動拒否、両host×3shellの無操作描画を自動検証。
+- [x] 通常67 tests成功（7 ignored）、fmt／all-target clippy -D warnings／diff check成功。
+- [x] 両端末native各1件成功。PowerShell／cmd／WSL bashで本文・cwd・TTY・端末保持・サブモニター配置を実機検証。既存Terminal矩形不変、今回のUUID付きwindowだけを回収。
+- [x] native smoke: 実hide/show30回、92 hidden polls、711 frames、NATIVE／PHASE2／PHASE3_SMOKE_PASS。画面端進入／tray操作は疑似入力、競合ERRORは想定内。
+- [ ] 実マウスでの端末選択・保存・再起動、python／codexの対話操作、混在DPI、installer実更新。
+
+実行中端末の内部状態復元、agent pane／agentセッション再開、内部コマンドreadinessは未実装。端末／agent固有の契約が別途必要なため今回の新規端末起動には含めない。Phase2／3の既存手動受け入れは継続。
+
 ## Windows Terminal モード（2026-10-03）
 
 - [x] PowerShell／cmd／WSL bash、複数行起動コマンド、cwd、終了後保持、任意launcher、通常のモニター／配置を編集可能。描画中に起動／保存しない。

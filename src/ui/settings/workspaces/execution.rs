@@ -6,7 +6,7 @@ pub(super) fn render(ui: &mut egui::Ui, entry: &mut WorkspaceEntry) {
     if ui
         .checkbox(
             &mut terminal_enabled,
-            "Windows Terminal モード（端末でコマンドを実行）",
+            "Terminal モード（端末でコマンドを実行）",
         )
         .changed()
     {

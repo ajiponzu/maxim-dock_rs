@@ -3,6 +3,16 @@ use crate::{core::*, ui::theme};
 use eframe::egui;
 pub(super) fn render(ui: &mut egui::Ui, entry: &mut WorkspaceEntry) {
     let terminal = entry.terminal.as_mut().expect("terminal editor");
+    egui::ComboBox::from_id_salt((entry.id, "terminal-host"))
+        .selected_text(terminal.host.label())
+        .show_ui(ui, |ui| {
+            for host in [
+                TerminalHost::WindowsTerminal,
+                TerminalHost::IntelligentTerminal,
+            ] {
+                ui.selectable_value(&mut terminal.host, host, host.label());
+            }
+        });
     egui::ComboBox::from_id_salt((entry.id, "terminal-shell"))
         .selected_text(match terminal.shell {
             TerminalShell::PowerShell => "Windows PowerShell",
@@ -60,7 +70,10 @@ pub(super) fn render(ui: &mut egui::Ui, entry: &mut WorkspaceEntry) {
         .show(ui, |ui| {
             super::field(
                 ui,
-                "Terminal 実行ファイル（空欄なら wt.exe を自動検出）",
+                &format!(
+                    "Terminal 実行ファイル（空欄なら {} を自動検出）",
+                    terminal.host.alias()
+                ),
                 &mut terminal.launcher,
             );
         });
@@ -75,14 +88,23 @@ mod tests {
     use super::*;
     #[test]
     fn terminal_editor_draw_keeps_all_shell_recipes_unchanged() {
-        for shell in [
-            TerminalShell::PowerShell,
-            TerminalShell::CommandPrompt,
-            TerminalShell::Wsl,
-        ] {
+        for (host, shell) in [
+            TerminalHost::WindowsTerminal,
+            TerminalHost::IntelligentTerminal,
+        ]
+        .into_iter()
+        .flat_map(|host| {
+            [
+                TerminalShell::PowerShell,
+                TerminalShell::CommandPrompt,
+                TerminalShell::Wsl,
+            ]
+            .map(|shell| (host, shell))
+        }) {
             let ctx = egui::Context::default();
             let mut entry = WorkspaceEntry {
                 terminal: Some(TerminalSettings {
+                    host,
                     shell,
                     script: "python\n# 日本語".into(),
                     ..Default::default()

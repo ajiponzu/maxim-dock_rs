@@ -104,7 +104,7 @@ pub(super) fn render(
                             .show(ui, |ui| {
                                 field(
                                     ui,
-                                    if entry.terminal.is_some() { "配置対象 .exe（通常は空欄・Windows Terminal を自動識別）" } else if entry.wsl.is_some() { "配置対象の Windows .exe（必須・例: Code.exe の絶対パス）" } else { "配置対象 .exe（空欄なら起動 .exe）" },
+                                    if entry.terminal.is_some() { "配置対象 .exe（通常は空欄・Terminal を自動識別）" } else if entry.wsl.is_some() { "配置対象の Windows .exe（必須・例: Code.exe の絶対パス）" } else { "配置対象 .exe（空欄なら起動 .exe）" },
                                     &mut entry.window_executable,
                                 );
                                 field(

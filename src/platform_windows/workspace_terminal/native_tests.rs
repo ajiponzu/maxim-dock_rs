@@ -39,6 +39,14 @@ fn linux(path: &Path) -> String {
 #[test]
 #[ignore = "opens/places/closes only UUID-tagged test Terminal windows; runs harmless scripts in PowerShell/cmd/Ubuntu"]
 fn native_terminal_scripts_run_in_requested_directories_and_preserve_existing_windows() {
+    run_terminal_scripts(TerminalHost::WindowsTerminal);
+}
+#[test]
+#[ignore = "opens/places/closes only UUID-tagged Intelligent Terminal test windows; runs harmless PowerShell/cmd/Ubuntu scripts"]
+fn native_intelligent_terminal_scripts_and_placement_preserve_existing_windows() {
+    run_terminal_scripts(TerminalHost::IntelligentTerminal);
+}
+fn run_terminal_scripts(host: TerminalHost) {
     let _dpi = workspace_windows::PhysicalDpi::enter().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let working = dir.path().join("日本語 project space");
@@ -90,6 +98,7 @@ fn native_terminal_scripts_run_in_requested_directories_and_preserve_existing_wi
         let entry = WorkspaceEntry {
             label: format!("Terminal test {shell:?}"),
             terminal: Some(TerminalSettings {
+                host,
                 shell,
                 script,
                 distribution: if shell == TerminalShell::Wsl {
@@ -170,7 +179,7 @@ fn native_terminal_scripts_run_in_requested_directories_and_preserve_existing_wi
             display.work
         ));
         println!(
-            "TERMINAL_NATIVE_PASS: {shell:?} script + cwd + submonitor placement; new Terminal remains interactive"
+            "TERMINAL_NATIVE_PASS: {host:?}/{shell:?} script + cwd + submonitor placement; new Terminal remains interactive"
         );
     }
     for (identity, previous) in existing {

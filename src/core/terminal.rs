@@ -1,6 +1,27 @@
-//! Windows Terminal recipes. Startup text is explicitly a trusted shell script, not argv.
+//! Terminal recipes. Startup text is explicitly a trusted shell script, not argv.
 use super::ValidationError;
 use serde::{Deserialize, Serialize};
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalHost {
+    #[default]
+    WindowsTerminal,
+    IntelligentTerminal,
+}
+impl TerminalHost {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::WindowsTerminal => "Windows Terminal",
+            Self::IntelligentTerminal => "Intelligent Terminal",
+        }
+    }
+    pub fn alias(self) -> &'static str {
+        match self {
+            Self::WindowsTerminal => "wt.exe",
+            Self::IntelligentTerminal => "wtai.exe",
+        }
+    }
+}
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TerminalShell {
@@ -12,17 +33,19 @@ pub enum TerminalShell {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TerminalSettings {
+    pub host: TerminalHost,
     pub shell: TerminalShell,
     pub script: String,
     pub distribution: String,
     pub user: String,
     pub keep_open: bool,
-    /// Empty resolves the current user's installed wt.exe alias.
+    /// Empty resolves the current user's installed alias for the selected host.
     pub launcher: String,
 }
 impl Default for TerminalSettings {
     fn default() -> Self {
         Self {
+            host: Default::default(),
             shell: Default::default(),
             script: String::new(),
             distribution: String::new(),
@@ -157,6 +180,32 @@ fn base64(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn terminal_host_defaults_preserve_old_recipes_and_round_trip_both_hosts() {
+        let legacy: TerminalSettings =
+            toml::from_str("shell = 'wsl'\nscript = 'codex'\nlauncher = ''").unwrap();
+        assert_eq!(legacy.host, TerminalHost::WindowsTerminal);
+        assert_eq!(legacy.host.alias(), "wt.exe");
+        let id = uuid::Uuid::new_v4();
+        let mut settings = legacy.clone();
+        settings.host = TerminalHost::IntelligentTerminal;
+        assert_eq!(settings.host.alias(), "wtai.exe");
+        assert_eq!(
+            settings.arguments(id, "/home/user/project"),
+            legacy.arguments(id, "/home/user/project")
+        );
+        for host in [
+            TerminalHost::WindowsTerminal,
+            TerminalHost::IntelligentTerminal,
+        ] {
+            settings.host = host;
+            settings.launcher = "C:\\custom\\wtai.exe".into();
+            assert_eq!(
+                toml::from_str::<TerminalSettings>(&toml::to_string(&settings).unwrap()).unwrap(),
+                settings
+            );
+        }
+    }
     #[test]
     fn terminal_scripts_are_encoded_and_force_a_new_identifiable_window() {
         assert_eq!(base64(b""), "");

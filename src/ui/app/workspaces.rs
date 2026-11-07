@@ -87,6 +87,13 @@ mod tests {
             .unwrap()
             .script = "python".into();
         assert!(!saved_workspace_matches(&draft, &saved));
+        draft.workspaces[0] = saved.clone();
+        draft.workspaces[0].entries[0]
+            .terminal
+            .as_mut()
+            .unwrap()
+            .host = TerminalHost::IntelligentTerminal;
+        assert!(!saved_workspace_matches(&draft, &saved));
         draft.workspaces.clear();
         assert!(!saved_workspace_matches(&draft, &saved));
     }

@@ -191,6 +191,7 @@ mod tests {
         });
         workspace.entries.push(crate::core::WorkspaceEntry {
             terminal: Some(crate::core::TerminalSettings {
+                host: crate::core::TerminalHost::IntelligentTerminal,
                 shell: crate::core::TerminalShell::Wsl,
                 script: "printf '%s\\n' '日本語; & quotes'\ncodex".into(),
                 ..Default::default()

@@ -49,7 +49,9 @@ WSL ブリッジ自体はコンソールを開かず、標準入力は無効で�
 
 ## Windows Terminal モード
 
-設定 → 作業環境 →「＋ アプリを追加」→「Windows Terminal モード（端末でコマンドを実行）」をオンにします。Windows Terminal がインストールされ、現在ユーザーの `wt.exe` 実行エイリアスが有効である必要があります。見つからない場合は「Terminal の詳細」で実在する `wt.exe` の絶対パスを指定します。アプリ自身は Terminal／WSL／Python 等をインストールしません。
+設定 → 作業環境 →「＋ アプリを追加」→「Terminal モード（端末でコマンドを実行）」をオンにし、端末を Windows Terminal／Intelligent Terminal から選びます。選択した端末がインストールされ、現在ユーザーの実行エイリアス（Windows Terminal は `wt.exe`、Intelligent Terminal は `wtai.exe`）が有効である必要があります。見つからない場合は「Terminal の詳細」で選択した端末の実行ファイルの絶対パスを指定します。この明示パスは自動検出より優先されるため、端末を変更した場合は空欄に戻すか対応するパスへ変更してください。アプリ自身は Terminal／WSL／Python 等をインストールしません。
+
+旧設定・新規追加の既定は Windows Terminal です。端末の選択も保存対象で、Intelligent Terminal は TOML の `terminal.host = "intelligent_terminal"`（Windows Terminal は `"windows_terminal"`）に対応します。変更後は「適用して保存」が必要です。端末以外のシェル／スクリプト／cwd／配置設定は共通です。[Intelligent Terminal の実行エイリアス](https://github.com/microsoft/intelligent-terminal/blob/main/src/cascadia/CascadiaPackage/Package.appxmanifest)と[起動引数実装](https://github.com/microsoft/intelligent-terminal/blob/main/src/cascadia/TerminalApp/AppCommandlineArgs.cpp)を確認しています。
 
 1. シェルを Windows PowerShell／コマンドプロンプト／WSL (bash) から選択。
 2. 作業ディレクトリを指定（任意）。Windows は `C:\Projects\example` 等の絶対パス、WSL は `/home/user/project` 等の Linux 絶対パス／`~`。空欄はシェルの既定。
